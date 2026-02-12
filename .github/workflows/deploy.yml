@@ -29,6 +29,12 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_TABLE: ${{ secrets.VITE_SUPABASE_TABLE }}
+          VITE_CHORE_REMOTE_ID: ${{ secrets.VITE_CHORE_REMOTE_ID }}
+          VITE_CHORE_ACCESS_CODE: ${{ secrets.VITE_CHORE_ACCESS_CODE }}
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
