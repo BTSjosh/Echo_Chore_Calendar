@@ -113,9 +113,9 @@ The passcode gets saved to localStorage, so you only need `?code=...` once per d
 
 1. Navigate to the admin page:
 ```
-https://YOUR_GITHUB_USERNAME.github.io/Echo_Chore_Calendar/admin?code=mySecretCode123
+https://YOUR_GITHUB_USERNAME.github.io/Echo_Chore_Calendar/#/admin?code=mySecretCode123
 ```
-(or `http://localhost:5173/admin?code=...` when developing locally)
+(or `http://localhost:5173/#/admin?code=...` when developing locally)
 
 2. Click **"Select JSON File"** and upload your chore JSON from your local app.
 
