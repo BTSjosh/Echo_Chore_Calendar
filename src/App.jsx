@@ -155,7 +155,9 @@ const loadPostpones = () => {
 
 const loadAccessCode = () => {
   try {
-    return localStorage.getItem(ACCESS_CODE_KEY);
+    const code = localStorage.getItem(ACCESS_CODE_KEY);
+    console.log('💾 loadAccessCode():', code ? '✓ found' : '❌ not found');
+    return code;
   } catch (error) {
     console.error('Failed to load access code:', error);
   }
@@ -164,7 +166,9 @@ const loadAccessCode = () => {
 
 const saveAccessCode = (code) => {
   try {
+    console.log('💾 saveAccessCode():', code);
     localStorage.setItem(ACCESS_CODE_KEY, code);
+    console.log('✅ Access code saved to localStorage');
   } catch (error) {
     console.error('Failed to save access code:', error);
   }
@@ -175,15 +179,50 @@ const normalizeSupabaseUrl = (value) =>
 
 const syncAccessCodeFromUrl = () => {
   if (!ACCESS_CODE || typeof window === 'undefined') return;
-  const params = new URLSearchParams(window.location.search);
-  const urlCode = params.get('code');
-  if (!urlCode) return;
+
+  console.log('🔐 syncAccessCodeFromUrl() - Looking for code in URL...');
+  const { pathname, search, hash } = window.location;
+  console.log('📍 URL parts - search:', search, 'hash:', hash);
+  
+  const searchParams = new URLSearchParams(search);
+  let urlCode = searchParams.get('code');
+  console.log('🔍 Found in search params:', urlCode ? `"${urlCode}"` : 'none');
+
+  let nextSearch = search;
+  let nextHash = hash;
+
+  if (urlCode) {
+    searchParams.delete('code');
+    const nextQuery = searchParams.toString();
+    nextSearch = nextQuery ? `?${nextQuery}` : '';
+  } else if (hash.includes('?')) {
+    console.log('🔍 Checking hash for code...');
+    const [hashPath, hashQuery] = hash.split('?', 2);
+    const hashParams = new URLSearchParams(hashQuery);
+    const hashCode = hashParams.get('code');
+    console.log('🔍 Found in hash params:', hashCode ? `"${hashCode}"` : 'none');
+    if (hashCode) {
+      urlCode = hashCode;
+      hashParams.delete('code');
+      const nextHashQuery = hashParams.toString();
+      nextHash = nextHashQuery ? `${hashPath}?${nextHashQuery}` : hashPath;
+    }
+  }
+
+  if (!urlCode) {
+    console.log('⚠️  No code found in URL');
+    return;
+  }
+
+  console.log('🔐 Comparing URL code with expected - URL:', urlCode, 'Expected:', ACCESS_CODE, 'Match:', urlCode === ACCESS_CODE);
   if (urlCode === ACCESS_CODE) {
     saveAccessCode(urlCode);
+  } else {
+    console.log('❌ Code mismatch - not saving');
   }
-  params.delete('code');
-  const nextQuery = params.toString();
-  const nextUrl = nextQuery ? `${window.location.pathname}?${nextQuery}` : window.location.pathname;
+
+  const nextUrl = `${pathname}${nextSearch}${nextHash}`;
+  console.log('🔄 Updating URL to:', nextUrl);
   window.history.replaceState({}, '', nextUrl);
 };
 
@@ -195,7 +234,9 @@ const fetchRemoteSnapshot = async () => {
   url.searchParams.set('select', 'payload,updated_at');
   url.searchParams.set('id', `eq.${SUPABASE_REMOTE_ID}`);
   url.searchParams.set('limit', '1');
-  url.searchParams.set('_t', Date.now().toString()); // Cache-busting timestamp
+
+  console.log('🌐 Fetching from Supabase:', url.toString());
+  console.log('🔑 Headers - apikey:', SUPABASE_ANON_KEY.substring(0, 20) + '...');
 
   const response = await fetch(url.toString(), {
     headers: {
@@ -209,10 +250,17 @@ const fetchRemoteSnapshot = async () => {
   });
 
   if (!response.ok) {
-    throw new Error(`Remote fetch failed: ${response.status}`);
+    const errorText = await response.text();
+    console.error('❌ Supabase error details:', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+    throw new Error(`Remote fetch failed: ${response.status} - ${errorText}`);
   }
 
   const rows = await response.json();
+  console.log('✅ Supabase response:', rows);
   if (!Array.isArray(rows) || rows.length === 0) return null;
   return rows[0]?.payload ?? null;
 };
@@ -849,10 +897,14 @@ const getDayOfMonth = (value) => {
 };
 
 const normalizeRecurrence = (chore) => {
+  // Handle both { recurrence: { frequency: "daily" } } and { recurrence: "Daily" }
+  const recurrenceValue = typeof chore.recurrence === 'object' && chore.recurrence !== null
+    ? chore.recurrence.frequency ?? chore.recurrence.recurrence ?? String(chore.recurrence)
+    : chore.recurrence;
   const raw = String(
-    chore.recurrence ?? chore.schedule?.recurrence ?? chore.schedule?.frequency ?? ""
+    recurrenceValue ?? chore.schedule?.recurrence ?? chore.schedule?.frequency ?? ""
   ).toLowerCase();
-  const interval = chore.recurrence?.interval ?? chore.recurrenceInterval ?? 1;
+  const interval = (typeof chore.recurrence === 'object' ? chore.recurrence?.interval : null) ?? chore.recurrenceInterval ?? 1;
 
   if (raw.includes("once") || raw.includes("one-time") || raw.includes("onetime")) {
     return { frequency: "once", interval: 1 };
@@ -932,7 +984,7 @@ const mapImportedChore = (chore) => {
     ? assigned
     : [];
 
-  const base = {
+  const normalized = {
     subject: chore.subject ?? "Untitled",
     description: chore.description ?? "",
     notes: chore.notes ?? chore.note ?? "",
@@ -944,10 +996,10 @@ const mapImportedChore = (chore) => {
     startDate: chore.startDate ?? BASE_START_DATE,
   };
 
-  if (!isRotating) return base;
+  if (!isRotating) return normalized;
 
   return {
-    ...base,
+    ...normalized,
     rotation: {
       group: chore.rotation?.group ?? chore.rotationGroup ?? "A",
       cycleLength: chore.rotation?.cycleLength ?? chore.cycleLength ?? chore.rotationInterval ?? 1,
@@ -1008,9 +1060,17 @@ function ChoreApp() {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
 
     syncAccessCodeFromUrl();
+    
+    // If ACCESS_CODE is configured, verify it's stored. Otherwise, allow loading.
     if (ACCESS_CODE) {
       const storedCode = loadAccessCode();
-      if (storedCode !== ACCESS_CODE) return;
+      if (storedCode !== ACCESS_CODE) {
+        // Only require code match if on a non-localhost origin or if explicitly configured
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (!isLocalhost) {
+          return;
+        }
+      }
     }
 
     let isActive = true;
