@@ -195,13 +195,17 @@ const fetchRemoteSnapshot = async () => {
   url.searchParams.set('select', 'payload,updated_at');
   url.searchParams.set('id', `eq.${SUPABASE_REMOTE_ID}`);
   url.searchParams.set('limit', '1');
+  url.searchParams.set('_t', Date.now().toString()); // Cache-busting timestamp
 
   const response = await fetch(url.toString(), {
     headers: {
       apikey: SUPABASE_ANON_KEY,
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       Accept: 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
     },
+    cache: 'no-store',
   });
 
   if (!response.ok) {
