@@ -30,12 +30,12 @@ create policy "Allow public read access"
   for select
   using (true);
 
--- Allow public insert/update access
-create policy "Allow public write access"
+-- Allow public insert/update ONLY for the 'current' row
+create policy "Allow public write to current row"
   on public.chore_snapshots
   for all
-  using (true)
-  with check (true);
+  using (id = 'current')
+  with check (id = 'current');
 ```
 
 3. Click **"Run"** (or press Ctrl/Cmd+Enter).
