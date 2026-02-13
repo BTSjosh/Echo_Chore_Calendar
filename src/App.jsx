@@ -1043,6 +1043,7 @@ function ChoreApp() {
   const [activeTab, setActiveTab] = useState("Today");
   const [selectedMember, setSelectedMember] = useState("All");
   const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [isReloading, setIsReloading] = useState(false);
   const [chores, setChores] = useState(() => {
     const storedProgress = loadFromLocalStorage();
     const storedDefinitions = loadChoreDefinitions();
@@ -1055,6 +1056,54 @@ function ChoreApp() {
   const [expandedChore, setExpandedChore] = useState(null);
   const fileInputRef = useRef(null);
   const assigneeCloseTimeoutRef = useRef(null);
+
+  const handleReloadData = async () => {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      window.alert('⚠️ Supabase not configured');
+      return;
+    }
+
+    setIsReloading(true);
+    try {
+      const payload = await fetchRemoteSnapshot();
+      if (!payload) {
+        window.alert('⚠️ No data found in Supabase');
+        setIsReloading(false);
+        return;
+      }
+
+      const remoteDefinitions = extractRemoteChores(payload);
+      const remoteProgress = extractRemoteProgress(payload);
+      const baseChores = remoteDefinitions ?? SEED_CHORES;
+      const storedProgress = remoteProgress ?? loadFromLocalStorage();
+      const nextChores = applyProgress(buildInitialChores(baseChores), storedProgress);
+
+      setChores(nextChores);
+
+      if (remoteDefinitions) {
+        saveChoreDefinitions(remoteDefinitions);
+      }
+
+      if (remoteProgress) {
+        saveToLocalStorage(remoteProgress);
+      }
+
+      const remotePostpones = Array.isArray(payload?.postponedOverrides)
+        ? payload.postponedOverrides
+        : null;
+      if (remotePostpones) {
+        setPostponedOverrides((prev) => mergePostpones(prev, remotePostpones));
+        savePostpones(mergePostpones(loadPostpones(), remotePostpones));
+      }
+
+      console.log('✅ Data reloaded successfully');
+    } catch (error) {
+      console.error('Failed to reload data:', error);
+      window.alert('❌ Failed to reload data from cloud');
+    } finally {
+      setIsReloading(false);
+    }
+  };
 
   useEffect(() => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
@@ -1508,6 +1557,15 @@ function ChoreApp() {
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={handleReloadData}
+              disabled={isReloading}
+              className="rounded-full bg-blue-600 px-6 py-3 text-xl font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow"
+              title="Reload chores from cloud"
+            >
+              {isReloading ? '⏳ Loading...' : '🔄 Reload'}
+            </button>
             <div className="ml-auto rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-500 shadow-sm">
               {currentDate.toLocaleDateString("en-US", {
                 weekday: "long",
