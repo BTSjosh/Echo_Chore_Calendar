@@ -13,18 +13,18 @@ const uploadSnapshotToSupabase = async (payload) => {
     throw new Error('Supabase URL or API key not configured');
   }
 
-  const url = new URL(`${baseUrl}/rest/v1/${SUPABASE_TABLE}`);
-  url.searchParams.set('id', `eq.${SUPABASE_REMOTE_ID}`);
+  const url = `${baseUrl}/rest/v1/${SUPABASE_TABLE}`;
 
-  const response = await fetch(url.toString(), {
-    method: 'PATCH',
+  const response = await fetch(url, {
+    method: 'POST',
     headers: {
       apikey: SUPABASE_ANON_KEY,
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       'Content-Type': 'application/json',
-      Prefer: 'return=minimal',
+      Prefer: 'resolution=merge-duplicates',
     },
     body: JSON.stringify({
+      id: SUPABASE_REMOTE_ID,
       payload,
       updated_at: new Date().toISOString(),
     }),

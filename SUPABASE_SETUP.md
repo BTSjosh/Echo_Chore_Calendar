@@ -20,10 +20,26 @@ create table if not exists public.chore_snapshots (
   payload jsonb not null,
   updated_at timestamptz default now()
 );
+
+-- Enable Row Level Security
+alter table public.chore_snapshots enable row level security;
+
+-- Allow public read access
+create policy "Allow public read access"
+  on public.chore_snapshots
+  for select
+  using (true);
+
+-- Allow public insert/update access
+create policy "Allow public write access"
+  on public.chore_snapshots
+  for all
+  using (true)
+  with check (true);
 ```
 
 3. Click **"Run"** (or press Ctrl/Cmd+Enter).
-4. You should see "Success. No rows returned" — the table is created.
+4. You should see "Success. No rows returned" — the table is created with public access policies.
 
 ## Step 3: Insert Your Initial Snapshot
 
