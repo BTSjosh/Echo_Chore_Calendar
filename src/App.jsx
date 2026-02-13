@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import initialChores from './data/initialChores.json'
+import AdminUpload from './AdminUpload.jsx'
 import './App.css'
 
 // localStorage helpers
@@ -981,7 +983,7 @@ const parseRestorePayload = (payload) => {
   return null;
 };
 
-function App() {
+function ChoreApp() {
   const [activeTab, setActiveTab] = useState("Today");
   const [selectedMember, setSelectedMember] = useState("All");
   const [currentDate, setCurrentDate] = useState(() => new Date());
@@ -1674,6 +1676,15 @@ function App() {
       )}
 
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<ChoreApp />} />
+      <Route path="/admin" element={<AdminUpload />} />
+    </Routes>
   );
 }
 

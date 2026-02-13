@@ -109,7 +109,44 @@ The passcode gets saved to localStorage, so you only need `?code=...` once per d
 
 ## Updating Chores in Supabase
 
-To add or change chores, go back to the SQL Editor and run:
+### Option 1: Admin Upload Page (Recommended)
+
+1. Navigate to the admin page:
+```
+https://YOUR_GITHUB_USERNAME.github.io/Echo_Chore_Calendar/admin?code=mySecretCode123
+```
+(or `http://localhost:5173/admin?code=...` when developing locally)
+
+2. Click **"Select JSON File"** and upload your chore JSON from your local app.
+
+3. The app validates and uploads the file to Supabase automatically.
+
+4. Refresh any open chore app instances to see the changes.
+
+**Expected JSON format:**
+```json
+{
+  "chores": [
+    {
+      "subject": "Take out trash",
+      "description": "Bins on Tuesday night",
+      "assigned": ["Josh"],
+      "recurrence": {
+        "frequency": "weekly",
+        "interval": 1,
+        "dayOfWeek": 2
+      },
+      "startDate": "2025-01-01"
+    }
+  ],
+  "progress": {},
+  "postponedOverrides": []
+}
+```
+
+### Option 2: Manual SQL Update
+
+To add or change chores directly via SQL, go to the SQL Editor and run:
 
 ```sql
 update public.chore_snapshots
