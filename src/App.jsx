@@ -235,9 +235,6 @@ const fetchRemoteSnapshot = async () => {
   url.searchParams.set('id', `eq.${SUPABASE_REMOTE_ID}`);
   url.searchParams.set('limit', '1');
 
-  console.log('🌐 Fetching from Supabase:', url.toString());
-  console.log('🔑 Headers - apikey:', SUPABASE_ANON_KEY.substring(0, 20) + '...');
-
   const response = await fetch(url.toString(), {
     headers: {
       apikey: SUPABASE_ANON_KEY,
@@ -251,18 +248,16 @@ const fetchRemoteSnapshot = async () => {
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('❌ Supabase error details:', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-    throw new Error(`Remote fetch failed: ${response.status} - ${errorText}`);
+    console.error('Failed to fetch from Supabase:', response.status, errorText);
+    throw new Error(`Remote fetch failed: ${response.status}`);
   }
 
   const rows = await response.json();
-  console.log('✅ Supabase response:', rows);
   if (!Array.isArray(rows) || rows.length === 0) return null;
-  return rows[0]?.payload ?? null;
+  return {
+    payload: rows[0]?.payload ?? null,
+    updated_at: rows[0]?.updated_at ?? null,
+  };
 };
 
 const extractRemoteChores = (payload) => {
@@ -1044,6 +1039,7 @@ function ChoreApp() {
   const [selectedMember, setSelectedMember] = useState("All");
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [isReloading, setIsReloading] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [chores, setChores] = useState(() => {
     const storedProgress = loadFromLocalStorage();
     const storedDefinitions = loadChoreDefinitions();
@@ -1057,6 +1053,61 @@ function ChoreApp() {
   const fileInputRef = useRef(null);
   const assigneeCloseTimeoutRef = useRef(null);
 
+  const processRemoteData = (payload, updated_at) => {
+    if (!payload) return false;
+
+    const remoteDefinitions = extractRemoteChores(payload);
+    const remoteProgress = extractRemoteProgress(payload);
+    const baseChores = remoteDefinitions ?? SEED_CHORES;
+    const storedProgress = remoteProgress ?? loadFromLocalStorage();
+    const nextChores = applyProgress(buildInitialChores(baseChores), storedProgress);
+
+    setChores(nextChores);
+    setLastUpdatedAt(updated_at);
+
+    if (remoteDefinitions) {
+      saveChoreDefinitions(remoteDefinitions);
+    }
+
+    if (remoteProgress) {
+      saveToLocalStorage(remoteProgress);
+    }
+
+    const remotePostpones = Array.isArray(payload?.postponedOverrides)
+      ? payload.postponedOverrides
+      : null;
+    if (remotePostpones) {
+      setPostponedOverrides((prev) => mergePostpones(prev, remotePostpones));
+      savePostpones(mergePostpones(loadPostpones(), remotePostpones));
+    }
+
+    return true;
+  };
+
+  const checkForUpdates = async (silent = false) => {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+
+    try {
+      const result = await fetchRemoteSnapshot();
+      if (!result) return;
+
+      const { payload, updated_at } = result;
+
+      // Only reload if data is newer
+      if (lastUpdatedAt && updated_at && new Date(updated_at) <= new Date(lastUpdatedAt)) {
+        if (!silent) console.log('📊 Data is up to date');
+        return;
+      }
+
+      const success = processRemoteData(payload, updated_at);
+      if (success && !silent) {
+        console.log('✅ Auto-reloaded new data');
+      }
+    } catch (error) {
+      console.error('Failed to check for updates:', error);
+    }
+  };
+
   const handleReloadData = async () => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
       window.alert('⚠️ Supabase not configured');
@@ -1065,37 +1116,14 @@ function ChoreApp() {
 
     setIsReloading(true);
     try {
-      const payload = await fetchRemoteSnapshot();
-      if (!payload) {
+      const result = await fetchRemoteSnapshot();
+      if (!result || !result.payload) {
         window.alert('⚠️ No data found in Supabase');
         setIsReloading(false);
         return;
       }
 
-      const remoteDefinitions = extractRemoteChores(payload);
-      const remoteProgress = extractRemoteProgress(payload);
-      const baseChores = remoteDefinitions ?? SEED_CHORES;
-      const storedProgress = remoteProgress ?? loadFromLocalStorage();
-      const nextChores = applyProgress(buildInitialChores(baseChores), storedProgress);
-
-      setChores(nextChores);
-
-      if (remoteDefinitions) {
-        saveChoreDefinitions(remoteDefinitions);
-      }
-
-      if (remoteProgress) {
-        saveToLocalStorage(remoteProgress);
-      }
-
-      const remotePostpones = Array.isArray(payload?.postponedOverrides)
-        ? payload.postponedOverrides
-        : null;
-      if (remotePostpones) {
-        setPostponedOverrides((prev) => mergePostpones(prev, remotePostpones));
-        savePostpones(mergePostpones(loadPostpones(), remotePostpones));
-      }
-
+      processRemoteData(result.payload, result.updated_at);
       console.log('✅ Data reloaded successfully');
     } catch (error) {
       console.error('Failed to reload data:', error);
@@ -1126,34 +1154,11 @@ function ChoreApp() {
 
     const loadRemote = async () => {
       try {
-        const payload = await fetchRemoteSnapshot();
-        if (!payload || !isActive) return;
+        const result = await fetchRemoteSnapshot();
+        if (!result || !isActive) return;
 
-        const remoteDefinitions = extractRemoteChores(payload);
-        const remoteProgress = extractRemoteProgress(payload);
-        const baseChores = remoteDefinitions ?? SEED_CHORES;
-        const storedProgress = remoteProgress ?? loadFromLocalStorage();
-        const nextChores = applyProgress(buildInitialChores(baseChores), storedProgress);
-
-        if (!isActive) return;
-
-        setChores(nextChores);
-
-        if (remoteDefinitions) {
-          saveChoreDefinitions(remoteDefinitions);
-        }
-
-        if (remoteProgress) {
-          saveToLocalStorage(remoteProgress);
-        }
-
-        const remotePostpones = Array.isArray(payload?.postponedOverrides)
-          ? payload.postponedOverrides
-          : null;
-        if (remotePostpones) {
-          setPostponedOverrides((prev) => mergePostpones(prev, remotePostpones));
-          savePostpones(mergePostpones(loadPostpones(), remotePostpones));
-        }
+        const { payload, updated_at } = result;
+        processRemoteData(payload, updated_at);
       } catch (error) {
         console.error('Failed to load cloud snapshot:', error);
       }
@@ -1161,8 +1166,25 @@ function ChoreApp() {
 
     loadRemote();
 
+    // Check for updates when tab becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkForUpdates(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Periodic polling every 2 minutes
+    const pollInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        checkForUpdates(true);
+      }
+    }, 2 * 60 * 1000);
+
     return () => {
       isActive = false;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(pollInterval);
     };
   }, []);
 
