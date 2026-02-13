@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+@layer base {
+	body {
+		@apply bg-[#121212] text-slate-100;
+	}
+
+	::selection {
+		@apply bg-green-500 text-slate-950;
+	}
+}

@@ -1,11 +1,123 @@
 import { useState, useRef } from 'react';
+import initialChores from './data/initialChores.json';
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim();
 const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 const SUPABASE_TABLE = (import.meta.env.VITE_SUPABASE_TABLE || 'chore_snapshots').trim();
 const SUPABASE_REMOTE_ID = (import.meta.env.VITE_CHORE_REMOTE_ID || 'current').trim();
+const STORAGE_KEY = 'echo-chore-schedule';
+const POSTPONE_KEY = 'echo-chore-postpones';
+const CHORE_DEFS_KEY = 'echo-chore-definitions';
+
+const HOUSEHOLD = Array.isArray(initialChores.household)
+  ? initialChores.household
+  : [];
+
+const PROGRESS_FIELDS = [
+  "completed",
+  "completedBy",
+  "lastCompleted",
+  "lastCompletedDate",
+  "completedToday",
+  "completedThrough",
+  "nextDue",
+  "nextDueDate",
+  "rotationIndex",
+  "rotationPosition",
+  "rotationCursor",
+  "rotationIndexPrev",
+  "rotationState",
+];
 
 const normalizeSupabaseUrl = (value) => value ? value.replace(/\/+$/, '') : '';
+
+const normalizeProgressEntry = (entry) => {
+  if (!entry || typeof entry !== "object") return null;
+  const normalized = {
+    completed: Boolean(entry.completed),
+    completedBy: Array.isArray(entry.completedBy) ? entry.completedBy : [],
+  };
+
+  PROGRESS_FIELDS.forEach((field) => {
+    if (field === "completed" || field === "completedBy") return;
+    if (entry[field] !== undefined) {
+      normalized[field] = entry[field];
+    }
+  });
+
+  return normalized;
+};
+
+const parseStoredProgress = (payload) => {
+  if (!payload) return null;
+
+  if (Array.isArray(payload)) {
+    return payload.reduce((acc, item) => {
+      if (!item?.subject) return acc;
+      const normalized = normalizeProgressEntry(item);
+      if (!normalized) return acc;
+      acc[item.subject] = normalized;
+      return acc;
+    }, {});
+  }
+
+  if (typeof payload === 'object') {
+    const progress = payload.progress ?? payload;
+    if (progress && typeof progress === 'object' && !Array.isArray(progress)) {
+      return Object.keys(progress).reduce((acc, key) => {
+        const entry = progress[key];
+        const normalized = normalizeProgressEntry(entry);
+        if (!normalized) return acc;
+        acc[key] = normalized;
+        return acc;
+      }, {});
+    }
+  }
+
+  return null;
+};
+
+const getFormattedDate = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const loadStoredProgress = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return null;
+    return parseStoredProgress(JSON.parse(stored));
+  } catch (error) {
+    console.error('Failed to read stored progress:', error);
+  }
+  return null;
+};
+
+const loadStoredPostpones = () => {
+  try {
+    const stored = localStorage.getItem(POSTPONE_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error('Failed to read stored postpones:', error);
+  }
+  return [];
+};
+
+const saveStoredProgress = (progress) => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, progress }));
+};
+
+const saveStoredPostpones = (overrides) => {
+  localStorage.setItem(POSTPONE_KEY, JSON.stringify(overrides));
+};
+
+const saveStoredDefinitions = (definitions) => {
+  localStorage.setItem(CHORE_DEFS_KEY, JSON.stringify(definitions));
+};
 
 const uploadSnapshotToSupabase = async (payload) => {
   const baseUrl = normalizeSupabaseUrl(SUPABASE_URL);
@@ -41,7 +153,10 @@ const uploadSnapshotToSupabase = async (payload) => {
 export default function AdminUpload() {
   const [status, setStatus] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [localStatus, setLocalStatus] = useState('');
+  const [localBusy, setLocalBusy] = useState(false);
   const fileInputRef = useRef(null);
+  const localFileInputRef = useRef(null);
 
   const handleFileUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -79,43 +194,177 @@ export default function AdminUpload() {
     }
   };
 
+  const handleLocalBackup = () => {
+    const progress = loadStoredProgress() ?? {};
+    const postponedOverrides = loadStoredPostpones();
+    const payload = JSON.stringify(
+      {
+        version: "2.0",
+        exportedAt: new Date().toISOString(),
+        household: HOUSEHOLD,
+        progress,
+        postponedOverrides,
+      },
+      null,
+      2
+    );
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `chores-${getFormattedDate()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleLocalRestoreFromFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setLocalBusy(true);
+    setLocalStatus('Reading file...');
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+
+      const restoredProgress = parseStoredProgress(parsed?.progress ?? parsed);
+      const restoredPostpones = Array.isArray(parsed?.postponedOverrides)
+        ? parsed.postponedOverrides
+        : [];
+      const restoredDefinitions = Array.isArray(parsed?.chores)
+        ? parsed.chores
+        : null;
+
+      if (!restoredProgress && !restoredDefinitions) {
+        throw new Error('Unsupported restore file format');
+      }
+
+      if (restoredDefinitions) {
+        saveStoredDefinitions(restoredDefinitions);
+      }
+
+      if (restoredProgress) {
+        saveStoredProgress(restoredProgress);
+      }
+
+      if (Object.prototype.hasOwnProperty.call(parsed ?? {}, 'postponedOverrides')) {
+        saveStoredPostpones(restoredPostpones);
+      }
+
+      setLocalStatus('✅ Local restore saved. Refresh the app to apply changes.');
+    } catch (error) {
+      console.error('Local restore failed:', error);
+      setLocalStatus(`❌ Restore failed: ${error.message}`);
+    } finally {
+      setLocalBusy(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleClearLocalData = () => {
+    if (window.confirm('⚠️ This will delete local progress, history, and postpones for this browser.')) {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(POSTPONE_KEY);
+        localStorage.removeItem(CHORE_DEFS_KEY);
+        setLocalStatus('✅ Local data cleared. Refresh the app to reload seed chores.');
+      } catch (error) {
+        console.error('Failed to clear local data:', error);
+        setLocalStatus('❌ Failed to clear local data.');
+      }
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-8">
-      <div className="max-w-2xl w-full bg-white rounded-3xl shadow-xl p-10">
-        <h1 className="text-5xl font-semibold text-slate-900 mb-4">
+    <div className="min-h-screen bg-[#121212] text-slate-100 flex items-center justify-center p-8">
+      <div className="max-w-2xl w-full bg-[#181818] rounded-3xl shadow-xl shadow-black/30 p-10 border border-green-500/20">
+        <h1 className="text-5xl font-semibold text-slate-100 mb-4">
           Admin: Upload Chores
         </h1>
-        <p className="text-xl text-slate-600 mb-8">
+        <p className="text-xl text-slate-400 mb-8">
           Upload a JSON file from your local app to update the chore definitions in Supabase.
         </p>
 
         <div className="space-y-6">
-          <div className="border-2 border-dashed border-slate-300 rounded-2xl p-10 text-center hover:border-slate-400 transition">
+          <div className="border-2 border-dashed border-green-500/20 rounded-2xl p-10 text-center hover:border-green-400/60 transition">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="rounded-full bg-slate-900 text-white px-8 py-4 text-xl font-semibold hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              className="rounded-full bg-green-500 text-slate-950 px-8 py-4 text-xl font-semibold hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
               {uploading ? 'Uploading...' : 'Select JSON File'}
             </button>
-            <p className="mt-4 text-sm text-slate-500">
-              Expected format: <code className="bg-slate-100 px-2 py-1 rounded">{'{ "chores": [...], "progress": {...}, "postponedOverrides": [...] }'}</code>
+            <p className="mt-4 text-sm text-slate-400">
+              Expected format: <code className="bg-[#1a1a1a] px-2 py-1 rounded text-slate-200">{'{ "chores": [...], "progress": {...}, "postponedOverrides": [...] }'}</code>
             </p>
           </div>
 
           {status && (
             <div className={`rounded-2xl p-6 text-lg font-medium ${
-              status.startsWith('✅') ? 'bg-green-100 text-green-800' :
-              status.startsWith('❌') ? 'bg-red-100 text-red-800' :
-              'bg-blue-100 text-blue-800'
+              status.startsWith('✅') ? 'bg-green-900/40 text-green-200' :
+              status.startsWith('❌') ? 'bg-red-900/40 text-red-200' :
+              'bg-sky-900/40 text-sky-200'
             }`}>
               {status}
             </div>
           )}
 
-          <div className="rounded-2xl bg-slate-50 p-6 text-sm text-slate-600 space-y-2">
-            <p className="font-semibold text-slate-900">How it works:</p>
+          <div className="rounded-2xl border border-green-500/20 bg-[#1a1a1a] p-8">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
+                  Local Data Tools
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-slate-100">
+                  Backup, restore, or clear this browser
+                </h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  These actions only affect the current device and browser.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleLocalBackup}
+                  className="rounded-full border border-slate-700 bg-[#1a1a1a] px-5 py-2 text-sm font-semibold text-slate-200 shadow-sm hover:bg-slate-800"
+                >
+                  Backup to File
+                </button>
+                <button
+                  type="button"
+                  onClick={() => localFileInputRef.current?.click()}
+                  disabled={localBusy}
+                  className="rounded-full border border-slate-700 bg-[#1a1a1a] px-5 py-2 text-sm font-semibold text-slate-200 shadow-sm hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Restore from File
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearLocalData}
+                  className="rounded-full border border-red-400/60 bg-[#1a1a1a] px-5 py-2 text-sm font-semibold text-red-300 shadow-sm hover:bg-red-950/40"
+                >
+                  Clear Local Data
+                </button>
+              </div>
+            </div>
+
+            {localStatus && (
+              <div className={`mt-6 rounded-2xl p-5 text-sm font-medium ${
+                localStatus.startsWith('✅') ? 'bg-green-900/40 text-green-200' :
+                localStatus.startsWith('❌') ? 'bg-red-900/40 text-red-200' :
+                'bg-sky-900/40 text-sky-200'
+              }`}>
+                {localStatus}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl bg-[#1a1a1a] border border-green-500/10 p-6 text-sm text-slate-300 space-y-2">
+            <p className="font-semibold text-slate-100">How it works:</p>
             <ul className="list-disc list-inside space-y-1">
               <li>Upload a JSON file with your chore definitions</li>
               <li>The file is validated and sent to Supabase</li>
@@ -124,10 +373,10 @@ export default function AdminUpload() {
             </ul>
           </div>
 
-          <div className="pt-6 border-t border-slate-200">
+          <div className="pt-6 border-t border-green-500/10">
             <a
               href="/"
-              className="inline-block rounded-full border-2 border-slate-300 px-8 py-3 text-lg font-semibold text-slate-700 hover:bg-slate-100 transition"
+              className="inline-block rounded-full border-2 border-green-500/20 px-8 py-3 text-lg font-semibold text-slate-300 hover:bg-[#1a1a1a] hover:border-green-400/40 transition"
             >
               ← Back to Chore Dashboard
             </a>
@@ -139,6 +388,13 @@ export default function AdminUpload() {
           type="file"
           accept="application/json"
           onChange={handleFileUpload}
+          className="hidden"
+        />
+        <input
+          ref={localFileInputRef}
+          type="file"
+          accept="application/json"
+          onChange={handleLocalRestoreFromFile}
           className="hidden"
         />
       </div>

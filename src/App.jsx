@@ -314,7 +314,7 @@ const SEED_CHORES = Array.isArray(initialChores.chores)
   ? initialChores.chores
   : [];
 
-const TABS = ["Today", "This Week", "This Month", "All"];
+const TABS = ["Yesterday", "Today", "This Week", "This Month"];
 
 const toDateOnly = (value) => {
   const date = value instanceof Date ? value : new Date(value);
@@ -550,33 +550,34 @@ const isDueOnDate = (chore, date) => {
 
   const rec = chore.recurrence || {};
   const freq = rec.frequency || "daily";
-  const interval = rec.interval || 1;
+  // Prefer schedule.frequencyDays for daily/weekly/monthly
+  const schedule = chore.schedule || {};
+  const interval = (typeof rec.interval === 'number' ? rec.interval : null)
+    ?? (typeof chore.recurrenceInterval === 'number' ? chore.recurrenceInterval : null)
+    ?? (typeof schedule.frequencyDays === 'number' ? schedule.frequencyDays : null)
+    ?? 1;
 
   if (freq === "daily") {
     if (!startDate) return true;
     const daysDiff = Math.floor((target - startDate) / (1000 * 60 * 60 * 24));
     return daysDiff % interval === 0;
   }
-
   if (freq === "once") {
     const dueDate = toDateOnly(chore.dueDate ?? chore.nextDueDate ?? chore.nextDue ?? chore.startDate ?? target);
     return target.getTime() === dueDate.getTime();
   }
-
   if (freq === "weekly") {
     if (target.getDay() !== (rec.dayOfWeek ?? 0)) return false;
     if (!startDate) return true;
-    const weeksDiff = Math.floor((target - startDate) / (1000 * 60 * 60 * 24 * 7));
-    return weeksDiff % interval === 0;
+    const weeksDiff = Math.floor((target - startDate) / (1000 * 60 * 60 * 24 * interval));
+    return weeksDiff % 1 === 0;
   }
-
   if (freq === "monthly") {
     if (target.getDate() !== (rec.dayOfMonth ?? 1)) return false;
     if (!startDate) return true;
     const monthsDiff = (target.getFullYear() - startDate.getFullYear()) * 12 + (target.getMonth() - startDate.getMonth());
     return monthsDiff % interval === 0;
   }
-
   return true;
 };
 
@@ -1005,40 +1006,11 @@ const mapImportedChore = (chore) => {
   };
 };
 
-const parseRestorePayload = (payload) => {
-  if (!payload) return null;
-
-  if (Array.isArray(payload)) {
-    return {
-      progress: parseStoredProgress(payload),
-      postponedOverrides: [],
-    };
-  }
-
-  if (payload && (payload.progress || payload.postponedOverrides)) {
-    return {
-      progress: parseStoredProgress(payload.progress ?? payload),
-      postponedOverrides: Array.isArray(payload.postponedOverrides)
-        ? payload.postponedOverrides
-        : [],
-    };
-  }
-
-  if (payload && Array.isArray(payload.chores)) {
-    return {
-      progress: extractProgress(payload.chores.map(mapImportedChore)),
-      postponedOverrides: [],
-    };
-  }
-
-  return null;
-};
-
 function ChoreApp() {
   const [activeTab, setActiveTab] = useState("Today");
   const [selectedMember, setSelectedMember] = useState("All");
   const [currentDate, setCurrentDate] = useState(() => new Date());
-  const [isReloading, setIsReloading] = useState(false);
+    const [isReloading, setIsReloading] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [chores, setChores] = useState(() => {
     const storedProgress = loadFromLocalStorage();
@@ -1050,7 +1022,6 @@ function ChoreApp() {
   const [postponeTarget, setPostponeTarget] = useState(null);
   const [assigneePicker, setAssigneePicker] = useState(null);
   const [expandedChore, setExpandedChore] = useState(null);
-  const fileInputRef = useRef(null);
   const assigneeCloseTimeoutRef = useRef(null);
 
   const processRemoteData = (payload, updated_at) => {
@@ -1196,6 +1167,35 @@ function ChoreApp() {
     const timeoutId = setTimeout(() => {
       setCurrentDate(new Date());
       intervalId = setInterval(() => setCurrentDate(new Date()), 24 * 60 * 60 * 1000);
+
+      // Carry over undone chores
+      setChores((prevChores) => {
+        const today = toDateOnly(now);
+        const todayKey = getDateKey(today);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        const tomorrowKey = getDateKey(tomorrow);
+
+        // Only add overrides for chores due today and not completed
+        const undoneSubjects = prevChores
+          .filter((chore) => isDueOnDate(chore, today) && !isChoreComplete(chore, getAssignedMembers(chore, today), today))
+          .map((chore) => chore.subject);
+
+        // Avoid duplicate overrides
+        setPostponedOverrides((prevOverrides) => {
+          const newOverrides = [...prevOverrides];
+          undoneSubjects.forEach((subject) => {
+            const alreadyExists = prevOverrides.some(
+              (override) => override.subject === subject && override.fromDate === todayKey && override.toDate === tomorrowKey
+            );
+            if (!alreadyExists) {
+              newOverrides.push({ subject, fromDate: todayKey, toDate: tomorrowKey });
+            }
+          });
+          return newOverrides;
+        });
+        return prevChores;
+      });
     }, nextMidnight.getTime() - now.getTime());
 
     return () => {
@@ -1270,7 +1270,22 @@ function ChoreApp() {
       return isDueOnDate(chore, today);
     };
 
-    if (activeTab === "Today") {
+    const isDueYesterday = (chore) => {
+      const yesterday = toDateOnly(new Date(today));
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayKey = getDateKey(yesterday);
+      if (isPostponedFrom(chore.subject, yesterdayKey)) {
+        return false;
+      }
+      if (isOverrideDueOn(chore.subject, yesterdayKey)) {
+        return true;
+      }
+      return isDueOnDate(chore, yesterday);
+    };
+
+    if (activeTab === "Yesterday") {
+      filtered = chores.filter((chore) => isDueYesterday(chore));
+    } else if (activeTab === "Today") {
       filtered = chores.filter((chore) => isDueToday(chore));
     } else if (activeTab === "This Week") {
       const start = getStartOfWeek(today);
@@ -1414,121 +1429,15 @@ function ChoreApp() {
   };
 
 
-  const autoBackupToFile = (progress, postponed) => {
-    const payload = JSON.stringify(
-      {
-        version: "2.0",
-        exportedAt: new Date().toISOString(),
-        household: HOUSEHOLD,
-        progress,
-        postponedOverrides: postponed,
-      },
-      null,
-      2
-    );
-    const blob = new Blob([payload], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `chores-${getFormattedDate()}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  };
-
-  const backupToFile = () => {
-    autoBackupToFile(extractProgress(chores), postponedOverrides);
-  };
-
-  const handleRestoreFromFile = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(reader.result);
-
-        // Check if imported file has full chore definitions (smart merge case)
-        if (Array.isArray(parsed.chores) && parsed.chores.length > 0) {
-          // Smart merge: combine imported chore definitions with current progress
-          const currentSubjects = new Set(chores.map((chore) => chore.subject));
-          const mergedChores = mergeChores(chores, parsed.chores);
-          
-          // Apply imported progress only for brand-new chores
-          const importedProgress = parseStoredProgress(parsed.progress ?? parsed);
-          const newSubjects = new Set(
-            parsed.chores
-              .map((chore) => chore?.subject)
-              .filter((subject) => subject && !currentSubjects.has(subject))
-          );
-          const filteredProgress = importedProgress && newSubjects.size
-            ? Object.keys(importedProgress).reduce((acc, subject) => {
-                if (newSubjects.has(subject)) {
-                  acc[subject] = importedProgress[subject];
-                }
-                return acc;
-              }, {})
-            : null;
-          const withProgress = applyProgress(mergedChores, filteredProgress);
-          
-          setChores(withProgress);
-          setPostponedOverrides(
-            mergePostpones(postponedOverrides, parsed.postponedOverrides)
-          );
-          saveToLocalStorage(extractProgress(withProgress));
-          saveChoreDefinitions(mergedChores);
-        } else {
-          // Progress-only restore (merge into current definitions)
-          const restored = parseRestorePayload(parsed);
-          if (restored) {
-            const merged = applyProgress(chores, restored.progress);
-            setChores(merged);
-            setPostponedOverrides(
-              mergePostpones(postponedOverrides, restored.postponedOverrides)
-            );
-            saveToLocalStorage(extractProgress(merged));
-          } else {
-            console.error("Unsupported restore file format");
-            window.alert("Restore failed: file format not recognized.");
-          }
-        }
-      } catch (error) {
-        console.error("Failed to restore schedule", error);
-        window.alert("Restore failed: invalid JSON file.");
-      }
-    };
-    reader.readAsText(file);
-    event.target.value = "";
-  };
-
-  const handleClearData = () => {
-    if (window.confirm("⚠️ This will delete all progress, completion history, and postpones. Reset to seed file?")) {
-      try {
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(POSTPONE_KEY);
-        localStorage.removeItem(CHORE_DEFS_KEY);
-        const seedWithProgress = applyProgress(buildInitialChores(), null);
-        setChores(seedWithProgress);
-        setPostponedOverrides([]);
-        window.alert("✅ Data cleared. App reset to seed file.");
-      } catch (error) {
-        console.error("Failed to clear data", error);
-        window.alert("Failed to clear data.");
-      }
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
-      <div className="mx-auto w-full px-8 py-12 2xl:px-16">
-        <div className="flex w-full flex-col gap-10 lg:flex-row">
-          <aside className="block w-full lg:w-96 flex-shrink-0 rounded-2xl bg-white p-10 shadow-xl sticky top-4 self-start border-r border-gray-200 lg:min-h-screen">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-              Sort by Name
+    <div className="min-h-screen bg-[#121212] text-slate-100">
+      <div className="mx-auto w-full px-6 py-8 2xl:px-12">
+        <div className="flex w-full flex-col gap-8 lg:flex-row">
+          <aside className="block w-full lg:w-60 xl:w-64 flex-shrink-0 rounded-3xl bg-[#181818] p-4 lg:p-5 shadow-xl shadow-black/30 border border-green-500/20 lg:sticky lg:top-4 lg:self-start lg:min-h-screen max-h-[calc(100vh-2rem)] lg:max-h-none overflow-auto">
+            <p className="text-center text-xs font-semibold uppercase tracking-[0.28em] text-slate-200">
+              Sort by Your Chores
             </p>
-            <div className="mt-4 flex flex-col gap-3">
+            <div className="mt-4 flex flex-col items-center gap-2">
               {["All", ...HOUSEHOLD].map((member) => {
                 const isActive = selectedMember === member;
                 return (
@@ -1537,28 +1446,37 @@ function ChoreApp() {
                     type="button"
                     onClick={() => setSelectedMember(member)}
                     className={
-                      "w-full rounded-xl px-6 py-4 text-left text-2xl font-semibold transition " +
+                      "rounded-xl px-4 py-2 text-center text-lg font-semibold transition min-w-[10rem] " +
                       (isActive
-                        ? "bg-slate-900 text-white"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200")
+                        ? "bg-green-500 text-slate-950"
+                        : "bg-[#353E43] text-slate-200 hover:bg-slate-700")
                     }
                   >
                     {member}
                   </button>
                 );
-              })}
+              })
+            }
             </div>
           </aside>
 
           <main className="flex-1 min-w-0 w-full">
-            <header className="mb-12 flex flex-col gap-6">
-          <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-500">
-              Chore LIST
-            </p>
-            <h1 className="mt-3 text-5xl sm:text-6xl font-semibold">
-              Plimmer Chore Dashboard
-            </h1>
+            <header className="mb-8 flex flex-col gap-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-5xl sm:text-6xl font-semibold text-slate-100">
+                Plimmer Chore Dashboard
+              </h1>
+            </div>
+            <button
+              type="button"
+              onClick={handleReloadData}
+              disabled={isReloading}
+              className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              title="Refresh chores from cloud"
+            >
+              {isReloading ? '↻ Refreshing...' : '↻ Refresh'}
+            </button>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             {TABS.map((tab) => {
@@ -1569,71 +1487,76 @@ function ChoreApp() {
                   type="button"
                   onClick={() => setActiveTab(tab)}
                   className={
-                    "rounded-full px-7 py-3 text-xl font-semibold transition " +
+                    "rounded-full px-6 py-2.5 text-lg font-semibold transition " +
                     (isActive
-                      ? "bg-slate-900 text-white shadow"
-                      : "bg-white text-slate-700 shadow-sm hover:bg-slate-200")
+                      ? "bg-green-500 text-slate-950 shadow"
+                      : "bg-[#353E43] text-slate-200 shadow-sm hover:bg-slate-800")
                   }
                 >
                   {tab}
                 </button>
               );
             })}
-            <button
-              type="button"
-              onClick={handleReloadData}
-              disabled={isReloading}
-              className="rounded-full bg-blue-600 px-6 py-3 text-xl font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow"
-              title="Reload chores from cloud"
-            >
-              {isReloading ? '⏳ Loading...' : '🔄 Reload'}
-            </button>
-            <div className="ml-auto rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-500 shadow-sm">
-              {currentDate.toLocaleDateString("en-US", {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              })}
-            </div>
-            <button
-              type="button"
-              onClick={backupToFile}
-              className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-100"
-            >
-              Backup to File
-            </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-100"
-            >
-              Restore from File
-            </button>
-            <button
-              type="button"
-              onClick={handleClearData}
-              className="rounded-full border border-red-200 bg-white px-5 py-3 text-sm font-semibold text-red-600 shadow-sm hover:bg-red-50"
-            >
-              Clear All Data
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/json"
-              onChange={handleRestoreFromFile}
-              className="hidden"
-            />
+          </div>
+          <div className="rounded-2xl bg-green-500/10 border border-green-500/30 px-6 py-3 w-fit">
+            <p className="text-2xl font-bold text-slate-100">
+              {(() => {
+                if (activeTab === "Yesterday") {
+                  const yesterday = new Date(currentDate);
+                  yesterday.setDate(yesterday.getDate() - 1);
+                  return yesterday.toLocaleDateString("en-US", {
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric",
+                  });
+                } else if (activeTab === "Today") {
+                  return currentDate.toLocaleDateString("en-US", {
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric",
+                  });
+                } else if (activeTab === "This Week") {
+                  const weekStart = getStartOfWeek(currentDate);
+                  const weekEnd = getEndOfWeek(currentDate);
+                  return `${weekStart.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })} - ${weekEnd.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })}`;
+                } else if (activeTab === "This Month") {
+                  const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+                  const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+                  return `${monthStart.toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                  })} - ${monthEnd.toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                  })}`;
+                }
+              })()}
+            </p>
           </div>
             </header>
 
-            <div className="space-y-12">
-              {visibleChores.map((chore) => {
-                const assignedList = getAssignedMembers(chore, currentDate);
-                const completedBy = getCompletedBy(chore, assignedList);
-                return (
-                  <article
-                    key={chore.subject}
-                    onClick={() => toggleDescription(chore.subject)}
+            <div className="space-y-6">
+              {(() => {
+                // Build a map to count subject collisions
+                const subjectCount = {};
+                visibleChores.forEach((chore) => {
+                  subjectCount[chore.subject] = (subjectCount[chore.subject] || 0) + 1;
+                });
+                return visibleChores.map((chore) => {
+                  const assignedList = getAssignedMembers(chore, currentDate);
+                  const completedBy = getCompletedBy(chore, assignedList);
+                  // Use id as fallback key if subject collides
+                  const key = subjectCount[chore.subject] > 1 && chore.id ? `${chore.subject}-${chore.id}` : chore.subject;
+                  return (
+                    <article
+                      key={key}
+                      onClick={() => toggleDescription(chore.subject)}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(event) => {
@@ -1643,29 +1566,29 @@ function ChoreApp() {
                       }
                     }}
                     className={
-                      "rounded-3xl bg-white p-10 shadow-xl transition hover:shadow-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 " +
+                      "rounded-3xl bg-[#353E43] p-4 shadow-xl shadow-black/30 border border-green-500/20 transition hover:shadow-2xl hover:shadow-black/40 hover:border-green-400/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400 " +
                       (isChoreComplete(chore, assignedList, currentDate) ? "opacity-70" : "")
                     }
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-8">
-                      <div className="min-w-[260px] flex-1">
-                        <h2 className="text-4xl lg:text-5xl font-semibold">
+                    <div className="flex flex-wrap items-start justify-between gap-6">
+                      <div className="min-w-[220px] flex-1">
+                        <h2 className="text-2xl lg:text-3xl font-semibold text-slate-100">
                           {chore.subject}
                         </h2>
                         {expandedChore === chore.subject && (
-                          <p className="mt-4 text-xl text-slate-600">
+                          <p className="mt-2 text-base text-slate-200">
                             {chore.description}
                           </p>
                         )}
-                        <p className="mt-4 text-xl text-slate-600">
+                        <p className="mt-2 text-lg font-bold text-slate-100">
                           Assigned:{" "}
                           {assignedList.map((member, index) => (
                             <span
                               key={member}
                               className={
                                 completedBy.includes(member)
-                                  ? "line-through text-slate-400"
-                                  : "text-slate-600"
+                                  ? "line-through text-slate-500"
+                                  : "text-slate-100"
                               }
                             >
                               {member}
@@ -1673,18 +1596,16 @@ function ChoreApp() {
                             </span>
                           ))}
                         </p>
-                        <p className="mt-2 text-sm uppercase tracking-[0.2em] text-slate-600">
-                          {activeTab === "Today"
-                            ? chore.recurrence.frequency
-                            : getNextDueDate(chore, currentDate).toLocaleDateString("en-US", {
-                                weekday: "short",
-                                month: "short",
-                                day: "numeric",
-                              })}
+                        <p className="mt-2 text-[0.7rem] uppercase tracking-[0.2em] text-slate-200">
+                          {getNextDueDate(chore, currentDate).toLocaleDateString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                          })}
                         </p>
                       </div>
 
-                      <div className="flex flex-col items-start gap-4">
+                      <div className="flex flex-wrap items-center gap-2 self-center">
                         {assignedList.length > 1 ? (
                           <button
                             type="button"
@@ -1692,21 +1613,26 @@ function ChoreApp() {
                               event.stopPropagation();
                               openAssigneePicker(chore.subject);
                             }}
-                            className="rounded-full border border-slate-200 px-6 py-3 text-lg font-semibold text-slate-700 hover:bg-slate-100"
+                            className="rounded-full border border-green-500/40 bg-[#353E43] px-4 py-4 text-sm font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[7.5rem] text-center transition-all duration-150"
                           >
                             Mark Done
                           </button>
                         ) : (
-                          <label className="flex items-center gap-3 text-lg font-semibold">
-                            <input
-                              type="checkbox"
-                              checked={chore.completed}
-                              onChange={() => toggleCompleted(chore.subject)}
-                              onClick={(event) => event.stopPropagation()}
-                              className="h-7 w-7 scale-125 accent-slate-900"
-                            />
-                            Done
-                          </label>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleCompleted(chore.subject);
+                            }}
+                            className={
+                              "rounded-full border px-4 py-4 text-sm font-semibold transition min-w-[7.5rem] text-center " +
+                              (chore.completed
+                                ? "border-green-400 bg-green-500/20 text-[#a7f3d0]"
+                                : "border-green-500/40 bg-[#353E43] text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 transition-all duration-150")
+                            }
+                          >
+                            {chore.completed ? "✓ Done" : "Mark Done"}
+                          </button>
                         )}
                         {activeTab === "Today" && remainingWeekDates.length > 0 && (
                           <button
@@ -1715,7 +1641,7 @@ function ChoreApp() {
                               event.stopPropagation();
                               openPostponeSelector(chore.subject);
                             }}
-                            className="rounded-full border border-slate-200 px-6 py-3 text-lg font-semibold text-slate-700 hover:bg-slate-100"
+                            className="rounded-full border border-green-500/40 bg-[#353E43] px-4 py-4 text-sm font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[7.5rem] text-center transition-all duration-150"
                           >
                             Postpone
                           </button>
@@ -1724,28 +1650,29 @@ function ChoreApp() {
                     </div>
                   </article>
                 );
-              })}
+              })
+            })()}
             </div>
           </main>
         </div>
       </div>
 
       {assigneePicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
-          <div className="w-full max-w-md rounded-3xl bg-white p-10 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
+          <div className="w-full max-w-md rounded-3xl bg-[#353E43] p-10 shadow-xl shadow-black/30 border border-green-500/20">
             <div className="flex items-start justify-between gap-6">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.32em] text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-[0.32em] text-slate-200">
                   Done by
                 </p>
-                <h3 className="mt-3 text-3xl font-semibold text-slate-900">
+                <h3 className="mt-3 text-3xl font-semibold text-slate-100">
                   Select completed names
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={closeAssigneePicker}
-                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+                className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800"
               >
                 Close
               </button>
@@ -1765,8 +1692,8 @@ function ChoreApp() {
                     className={
                       "w-full rounded-2xl border px-6 py-4 text-left text-lg font-semibold transition " +
                       (completedBy.includes(member)
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 text-slate-700 hover:bg-slate-100")
+                        ? "border-green-400 bg-green-500 text-slate-950"
+                        : "border-slate-700 text-slate-200 hover:bg-slate-800")
                     }
                   >
                     {member}
@@ -1779,21 +1706,21 @@ function ChoreApp() {
       )}
 
       {postponeTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
-          <div className="w-full max-w-md rounded-3xl bg-white p-10 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
+          <div className="w-full max-w-md rounded-3xl bg-[#353E43] p-10 shadow-xl shadow-black/30 border border-green-500/20">
             <div className="flex items-start justify-between gap-6">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.32em] text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-[0.32em] text-slate-200">
                   Postpone to
                 </p>
-                <h3 className="mt-3 text-3xl font-semibold text-slate-900">
+                <h3 className="mt-3 text-3xl font-semibold text-slate-100">
                   Choose a new day
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={closePostponeSelector}
-                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+                className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800"
               >
                 Close
               </button>
@@ -1805,7 +1732,7 @@ function ChoreApp() {
                   key={date.toISOString()}
                   type="button"
                   onClick={() => handlePostponeToDate(postponeTarget, date)}
-                  className="w-full rounded-2xl border border-slate-200 px-6 py-4 text-left text-lg font-semibold text-slate-700 hover:bg-slate-100"
+                  className="w-full rounded-2xl border border-slate-700 px-6 py-4 text-left text-lg font-semibold text-slate-200 hover:bg-slate-800"
                 >
                   {date.toLocaleDateString("en-US", {
                     weekday: "long",
