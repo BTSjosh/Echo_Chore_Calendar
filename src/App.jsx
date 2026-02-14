@@ -1533,8 +1533,8 @@ function ChoreApp() {
             </div>
           </aside>
 
-          <main className="flex-1 min-w-0 w-full min-h-0">
-            <header className="mb-8 flex flex-col gap-5">
+          <main className="flex-1 min-w-0 w-full min-h-0" style={{ minHeight: 'calc(100dvh - 4rem)', paddingBottom: '8rem', WebkitOverflowScrolling: 'touch', overflow: 'auto' }}>
+            <header className="mb-8 flex flex-col gap-5 sticky top-0 z-30 bg-[#121212] bg-opacity-95 backdrop-blur-md" style={{ WebkitBackdropFilter: 'blur(8px)' }}>
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-5xl sm:text-6xl font-semibold text-slate-100">
