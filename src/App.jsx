@@ -1506,7 +1506,7 @@ function ChoreApp() {
     <div className="min-h-screen bg-[#121212] text-slate-100">
       <div className="mx-auto w-full px-6 py-8 2xl:px-12">
         <div className="flex w-full flex-col gap-8 lg:flex-row">
-          <aside className="block w-full lg:w-60 xl:w-64 flex-shrink-0 rounded-3xl bg-[#181818] p-4 lg:p-5 shadow-xl shadow-black/30 border border-green-500/20 lg:sticky lg:top-4 lg:self-start lg:min-h-screen max-h-[calc(100vh-2rem)] lg:max-h-none overflow-auto">
+          <aside className="block w-full lg:w-60 xl:w-64 flex-shrink-0 rounded-3xl bg-[#181818] p-4 lg:p-5 shadow-xl shadow-black/30 border border-green-500/20 lg:sticky lg:top-4 lg:self-start lg:min-h-screen">
             <p className="text-center text-xs font-semibold uppercase tracking-[0.28em] text-slate-200">
               Sort by Your Chores
             </p>
@@ -1533,7 +1533,7 @@ function ChoreApp() {
             </div>
           </aside>
 
-          <main className="flex-1 min-w-0 w-full">
+          <main className="flex-1 min-w-0 w-full min-h-0">
             <header className="mb-8 flex flex-col gap-5">
           <div className="flex items-start justify-between gap-4">
             <div>
