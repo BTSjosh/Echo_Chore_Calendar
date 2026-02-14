@@ -1,3 +1,8 @@
+/* Smoother touch scrolling and prevent cut-off on Silk/Echo Show */
+html, body {
+	touch-action: pan-y;
+	-webkit-overflow-scrolling: touch;
+}
 @import "tailwindcss";
 
 @layer base {

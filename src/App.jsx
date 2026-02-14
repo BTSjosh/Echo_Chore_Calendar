@@ -1534,7 +1534,7 @@ function ChoreApp() {
           </aside>
 
           <main className="flex-1 min-w-0 w-full min-h-0">
-            <header className="mb-8 flex flex-col gap-5">
+            <header className="mb-8 flex flex-col gap-5 fixed top-0 left-0 w-full z-40 bg-[#121212] bg-opacity-95 border-b border-green-500/10" style={{backdropFilter:'blur(2px)'}}>
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-5xl sm:text-6xl font-semibold text-slate-100">
@@ -1614,120 +1614,153 @@ function ChoreApp() {
           </div>
             </header>
 
-            <div className="space-y-6">
-              {(() => {
-                // Build a map to count subject collisions
-                const subjectCount = {};
-                visibleChores.forEach((chore) => {
-                  subjectCount[chore.subject] = (subjectCount[chore.subject] || 0) + 1;
-                });
-                return visibleChores.map((chore) => {
-                  const assignedList = getAssignedMembers(chore, currentDate);
-                  const completedBy = getCompletedBy(chore, assignedList);
-                  // Use id as fallback key if subject collides
-                  const key = subjectCount[chore.subject] > 1 && chore.id ? `${chore.subject}-${chore.id}` : chore.subject;
-                  return (
-                    <article
-                      key={key}
-                      onClick={() => toggleDescription(chore.subject)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        toggleDescription(chore.subject);
-                      }
-                    }}
-                    className={
-                      "rounded-3xl bg-[#353E43] p-4 shadow-xl shadow-black/30 border border-green-500/20 transition hover:shadow-2xl hover:shadow-black/40 hover:border-green-400/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400 " +
-                      (isChoreComplete(chore, assignedList, currentDate) ? "opacity-70" : "")
+            <div className="space-y-6 pb-[18vh]">
+              <MemoizedChoreList
+                visibleChores={visibleChores}
+                expandedChore={expandedChore}
+                toggleDescription={toggleDescription}
+                getAssignedMembers={getAssignedMembers}
+                getCompletedBy={getCompletedBy}
+                currentDate={currentDate}
+                isChoreComplete={isChoreComplete}
+                getNextDueDate={getNextDueDate}
+                activeTab={activeTab}
+                remainingWeekDates={remainingWeekDates}
+                openPostponeSelector={openPostponeSelector}
+                openAssigneePicker={openAssigneePicker}
+                toggleCompleted={toggleCompleted}
+              />
+            </div>
+          // Memoized chore list for performance
+          const MemoizedChoreList = React.memo(function ChoreList({
+            visibleChores,
+            expandedChore,
+            toggleDescription,
+            getAssignedMembers,
+            getCompletedBy,
+            currentDate,
+            isChoreComplete,
+            getNextDueDate,
+            activeTab,
+            remainingWeekDates,
+            openPostponeSelector,
+            openAssigneePicker,
+            toggleCompleted
+          }) {
+            // Build a map to count subject collisions
+            const subjectCount = React.useMemo(() => {
+              const map = {};
+              visibleChores.forEach((chore) => {
+                map[chore.subject] = (map[chore.subject] || 0) + 1;
+              });
+              return map;
+            }, [visibleChores]);
+            return visibleChores.map((chore) => {
+              const assignedList = getAssignedMembers(chore, currentDate);
+              const completedBy = getCompletedBy(chore, assignedList);
+              // Use id as fallback key if subject collides
+              const key = subjectCount[chore.subject] > 1 && chore.id ? `${chore.subject}-${chore.id}` : chore.subject;
+              return (
+                <article
+                  key={key}
+                  onClick={() => toggleDescription(chore.subject)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      toggleDescription(chore.subject);
                     }
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-6">
-                      <div className="min-w-[220px] flex-1">
-                        <h2 className="text-2xl lg:text-3xl font-semibold text-slate-100 scale-x-125 origin-left">
-                          {chore.subject}
-                        </h2>
-                        {expandedChore === chore.subject && (
-                          <p className="mt-2 text-base text-slate-200">
-                            {chore.description}
-                          </p>
-                        )}
-                        <p className="mt-2 text-lg font-bold text-slate-100 scale-x-110 origin-left">
-                          Assigned:{" "}
-                          {assignedList.map((member, index) => (
-                            <span
-                              key={member}
-                              className={
-                                completedBy.includes(member)
-                                  ? "line-through text-slate-500 scale-x-110 origin-left"
-                                  : "text-slate-100 scale-x-110 origin-left"
-                              }
-                            >
-                              {member}
-                              {index < assignedList.length - 1 ? ", " : ""}
-                            </span>
-                          ))}
+                  }}
+                  className={
+                    "rounded-3xl bg-[#353E43] p-4 shadow-xl shadow-black/30 border border-green-500/20 transition hover:shadow-2xl hover:shadow-black/40 hover:border-green-400/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400 " +
+                    (isChoreComplete(chore, assignedList, currentDate) ? "opacity-70" : "")
+                  }
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-6">
+                    <div className="min-w-[220px] flex-1">
+                      <h2 className="text-2xl lg:text-3xl font-semibold text-slate-100 scale-x-125 origin-left">
+                        {chore.subject}
+                      </h2>
+                      {expandedChore === chore.subject && (
+                        <p className="mt-2 text-base text-slate-200">
+                          {chore.description}
                         </p>
-                        <p className="mt-2 text-[0.7rem] uppercase tracking-[0.2em] text-slate-200 scale-x-125 origin-left">
-                          {getNextDueDate(chore, currentDate).toLocaleDateString("en-US", {
-                            weekday: "long",
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-6 self-center">
-                        {/* Postpone button first, then Mark Done on the right */}
-                        {activeTab === "Today" && remainingWeekDates.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openPostponeSelector(chore.subject);
-                            }}
-                            className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
-                            style={{ marginRight: '0.5rem' }}
-                          >
-                            Postpone
-                          </button>
-                        )}
-                        {assignedList.length > 1 ? (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openAssigneePicker(chore.subject);
-                            }}
-                            className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
-                          >
-                            Mark Done
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              toggleCompleted(chore.subject);
-                            }}
+                      )}
+                      <p className="mt-2 text-lg font-bold text-slate-100 scale-x-110 origin-left">
+                        Assigned:{" "}
+                        {assignedList.map((member, index) => (
+                          <span
+                            key={member}
                             className={
-                              "rounded-full border px-8 py-5 text-base font-semibold transition min-w-[11rem] text-center " +
-                              (chore.completed
-                                ? "border-green-400 bg-green-500/20 text-[#a7f3d0]"
-                                : "border-green-500/40 bg-[#353E43] text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 transition-all duration-150")
+                              completedBy.includes(member)
+                                ? "line-through text-slate-500 scale-x-110 origin-left"
+                                : "text-slate-100 scale-x-110 origin-left"
                             }
                           >
-                            {chore.completed ? "✓ Done" : "Mark Done"}
-                          </button>
-                        )}
-                      </div>
+                            {member}
+                            {index < assignedList.length - 1 ? ", " : ""}
+                          </span>
+                        ))}
+                      </p>
+                      <p className="mt-2 text-[0.7rem] uppercase tracking-[0.2em] text-slate-200 scale-x-125 origin-left">
+                        {getNextDueDate(chore, currentDate).toLocaleDateString("en-US", {
+                          weekday: "long",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </p>
                     </div>
-                  </article>
-                );
-              })
-            })()}
-            </div>
+
+                    <div className="flex flex-wrap items-center gap-6 self-center">
+                      {/* Postpone button first, then Mark Done on the right */}
+                      {activeTab === "Today" && remainingWeekDates.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openPostponeSelector(chore.subject);
+                          }}
+                          className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
+                          style={{ marginRight: '0.5rem' }}
+                        >
+                          Postpone
+                        </button>
+                      )}
+                      {assignedList.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openAssigneePicker(chore.subject);
+                          }}
+                          className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
+                        >
+                          Mark Done
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleCompleted(chore.subject);
+                          }}
+                          className={
+                            "rounded-full border px-8 py-5 text-base font-semibold transition min-w-[11rem] text-center " +
+                            (chore.completed
+                              ? "border-green-400 bg-green-500/20 text-[#a7f3d0]"
+                              : "border-green-500/40 bg-[#353E43] text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 transition-all duration-150")
+                          }
+                        >
+                          {chore.completed ? "✓ Done" : "Mark Done"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            });
+          });
           </main>
         </div>
       </div>

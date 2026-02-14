@@ -1,3 +1,13 @@
+/* Smoother touch scrolling and prevent cut-off on Silk/Echo Show */
+.chore-scroll-area {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Add extra bottom padding for last card visibility */
+.chore-scroll-area {
+  padding-bottom: 18vh;
+}
 #root,
 html,
 body {
