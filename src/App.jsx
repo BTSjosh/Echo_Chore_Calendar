@@ -1572,7 +1572,7 @@ function ChoreApp() {
                   >
                     <div className="flex flex-wrap items-start justify-between gap-6">
                       <div className="min-w-[220px] flex-1">
-                        <h2 className="text-2xl lg:text-3xl font-semibold text-slate-100">
+                        <h2 className="text-2xl lg:text-3xl font-semibold text-slate-100 scale-x-125 origin-left">
                           {chore.subject}
                         </h2>
                         {expandedChore === chore.subject && (
@@ -1580,15 +1580,15 @@ function ChoreApp() {
                             {chore.description}
                           </p>
                         )}
-                        <p className="mt-2 text-lg font-bold text-slate-100">
+                        <p className="mt-2 text-lg font-bold text-slate-100 scale-x-110 origin-left">
                           Assigned:{" "}
                           {assignedList.map((member, index) => (
                             <span
                               key={member}
                               className={
                                 completedBy.includes(member)
-                                  ? "line-through text-slate-500"
-                                  : "text-slate-100"
+                                  ? "line-through text-slate-500 scale-x-110 origin-left"
+                                  : "text-slate-100 scale-x-110 origin-left"
                               }
                             >
                               {member}
@@ -1596,16 +1596,30 @@ function ChoreApp() {
                             </span>
                           ))}
                         </p>
-                        <p className="mt-2 text-[0.7rem] uppercase tracking-[0.2em] text-slate-200">
+                        <p className="mt-2 text-[0.7rem] uppercase tracking-[0.2em] text-slate-200 scale-x-125 origin-left">
                           {getNextDueDate(chore, currentDate).toLocaleDateString("en-US", {
-                            weekday: "short",
+                            weekday: "long",
                             month: "short",
                             day: "numeric",
                           })}
                         </p>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 self-center">
+                      <div className="flex flex-wrap items-center gap-6 self-center">
+                        {/* Postpone button first, then Mark Done on the right */}
+                        {activeTab === "Today" && remainingWeekDates.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openPostponeSelector(chore.subject);
+                            }}
+                            className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
+                            style={{ marginRight: '0.5rem' }}
+                          >
+                            Postpone
+                          </button>
+                        )}
                         {assignedList.length > 1 ? (
                           <button
                             type="button"
@@ -1613,7 +1627,7 @@ function ChoreApp() {
                               event.stopPropagation();
                               openAssigneePicker(chore.subject);
                             }}
-                            className="rounded-full border border-green-500/40 bg-[#353E43] px-4 py-4 text-sm font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[7.5rem] text-center transition-all duration-150"
+                            className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
                           >
                             Mark Done
                           </button>
@@ -1625,25 +1639,13 @@ function ChoreApp() {
                               toggleCompleted(chore.subject);
                             }}
                             className={
-                              "rounded-full border px-4 py-4 text-sm font-semibold transition min-w-[7.5rem] text-center " +
+                              "rounded-full border px-8 py-5 text-base font-semibold transition min-w-[11rem] text-center " +
                               (chore.completed
                                 ? "border-green-400 bg-green-500/20 text-[#a7f3d0]"
                                 : "border-green-500/40 bg-[#353E43] text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 transition-all duration-150")
                             }
                           >
                             {chore.completed ? "✓ Done" : "Mark Done"}
-                          </button>
-                        )}
-                        {activeTab === "Today" && remainingWeekDates.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openPostponeSelector(chore.subject);
-                            }}
-                            className="rounded-full border border-green-500/40 bg-[#353E43] px-4 py-4 text-sm font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[7.5rem] text-center transition-all duration-150"
-                          >
-                            Postpone
                           </button>
                         )}
                       </div>
@@ -1713,7 +1715,7 @@ function ChoreApp() {
                 <p className="text-xs font-semibold uppercase tracking-[0.32em] text-slate-200">
                   Postpone to
                 </p>
-                <h3 className="mt-3 text-3xl font-semibold text-slate-100">
+                <h3 className="mt-3 text-xl font-semibold text-slate-100">
                   Choose a new day
                 </h3>
               </div>
