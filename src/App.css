@@ -19,3 +19,48 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* Make header sticky and resilient for Silk/Echo Show */
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(18, 18, 18, 0.95);
+  backdrop-filter: blur(2px);
+  border-bottom: 1px solid rgba(34,197,94,0.1);
+}
+
+/* Prevent scroll chaining and bounce on Silk */
+body, html {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+main {
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 0%;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+body {
+  touch-action: manipulation;
+}
+
+/* Sidebar: prevent scroll, keep fixed on large screens */
+.sidebar-sticky {
+  position: sticky;
+  top: 1rem;
+  align-self: flex-start;
+  min-height: 100vh;
+}
+
+/* Hide scrollbars for a cleaner look on Silk */
+main::-webkit-scrollbar {
+  display: none;
+}
+main {
+  scrollbar-width: none;
+}

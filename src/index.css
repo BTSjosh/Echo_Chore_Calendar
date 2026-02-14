@@ -13,4 +13,25 @@ html, body {
 	::selection {
 		@apply bg-green-500 text-slate-950;
 	}
+
+	}
+
+/* Prevent scroll chaining and bounce on Silk/Echo Show */
+html, body {
+	overscroll-behavior: none;
+	-webkit-overflow-scrolling: touch;
+	height: 100%;
+}
+
+#root {
+	height: 100%;
+	width: 100%;
+}
+
+/* Hide scrollbars for a cleaner look on Silk */
+body::-webkit-scrollbar, #root::-webkit-scrollbar {
+	display: none;
+}
+body, #root {
+	scrollbar-width: none;
 }
