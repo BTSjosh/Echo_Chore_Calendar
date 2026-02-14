@@ -156,7 +156,6 @@ const loadPostpones = () => {
 const loadAccessCode = () => {
   try {
     const code = localStorage.getItem(ACCESS_CODE_KEY);
-    console.log('💾 loadAccessCode():', code ? '✓ found' : '❌ not found');
     return code;
   } catch (error) {
     console.error('Failed to load access code:', error);
@@ -166,9 +165,7 @@ const loadAccessCode = () => {
 
 const saveAccessCode = (code) => {
   try {
-    console.log('💾 saveAccessCode():', code);
     localStorage.setItem(ACCESS_CODE_KEY, code);
-    console.log('✅ Access code saved to localStorage');
   } catch (error) {
     console.error('Failed to save access code:', error);
   }
@@ -180,13 +177,10 @@ const normalizeSupabaseUrl = (value) =>
 const syncAccessCodeFromUrl = () => {
   if (!ACCESS_CODE || typeof window === 'undefined') return;
 
-  console.log('🔐 syncAccessCodeFromUrl() - Looking for code in URL...');
   const { pathname, search, hash } = window.location;
-  console.log('📍 URL parts - search:', search, 'hash:', hash);
   
   const searchParams = new URLSearchParams(search);
   let urlCode = searchParams.get('code');
-  console.log('🔍 Found in search params:', urlCode ? `"${urlCode}"` : 'none');
 
   let nextSearch = search;
   let nextHash = hash;
@@ -196,11 +190,9 @@ const syncAccessCodeFromUrl = () => {
     const nextQuery = searchParams.toString();
     nextSearch = nextQuery ? `?${nextQuery}` : '';
   } else if (hash.includes('?')) {
-    console.log('🔍 Checking hash for code...');
     const [hashPath, hashQuery] = hash.split('?', 2);
     const hashParams = new URLSearchParams(hashQuery);
     const hashCode = hashParams.get('code');
-    console.log('🔍 Found in hash params:', hashCode ? `"${hashCode}"` : 'none');
     if (hashCode) {
       urlCode = hashCode;
       hashParams.delete('code');
@@ -210,19 +202,15 @@ const syncAccessCodeFromUrl = () => {
   }
 
   if (!urlCode) {
-    console.log('⚠️  No code found in URL');
     return;
   }
 
-  console.log('🔐 Comparing URL code with expected - URL:', urlCode, 'Expected:', ACCESS_CODE, 'Match:', urlCode === ACCESS_CODE);
   if (urlCode === ACCESS_CODE) {
     saveAccessCode(urlCode);
   } else {
-    console.log('❌ Code mismatch - not saving');
   }
 
   const nextUrl = `${pathname}${nextSearch}${nextHash}`;
-  console.log('🔄 Updating URL to:', nextUrl);
   window.history.replaceState({}, '', nextUrl);
 };
 
@@ -1748,6 +1736,12 @@ function ChoreApp() {
         </div>
       )}
 
+    {/* Hidden iframe to keep Silk open */}
+    <iframe
+      src="https://dagammla.gitlab.io/keep-silk-open/iframe.html"
+      style={{ display: 'none' }}
+      title="Keep Alive"
+    />
     </div>
   );
 }
