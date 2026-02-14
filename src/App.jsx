@@ -1012,6 +1012,89 @@ function ChoreApp() {
   const [expandedChore, setExpandedChore] = useState(null);
   const assigneeCloseTimeoutRef = useRef(null);
 
+  // --- Silk/Echo Show 21 Keep-Alive Strategy (2026) ---
+  // 1. Muted looped audio (autoplay, fallback to user interaction if blocked)
+  // 2. Subtle DOM/CSS nudges and requestAnimationFrame loop
+  // 3. Visibility change logging for debugging
+  useEffect(() => {
+    let audio, rafId, nudgeInterval, userInteracted = false;
+
+    function startAudioPlayback() {
+      if (!audio) return;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => console.log('[KeepAlive] Silent audio playing'))
+          .catch(err => {
+            console.warn('[KeepAlive] Autoplay blocked, waiting for user interaction...', err);
+            // Wait for first user tap/click to try again
+            if (!userInteracted) {
+              const resume = () => {
+                userInteracted = true;
+                audio.play().then(
+                  () => console.log('[KeepAlive] Audio started after user interaction')
+                ).catch(e => console.warn('[KeepAlive] Still blocked:', e));
+                window.removeEventListener('pointerdown', resume, true);
+                window.removeEventListener('touchstart', resume, true);
+              };
+              window.addEventListener('pointerdown', resume, true);
+              window.addEventListener('touchstart', resume, true);
+            }
+          });
+      }
+    }
+
+    // Create and append hidden audio element
+    audio = document.createElement('audio');
+    audio.src = '/silent-loop.mp3';
+    audio.loop = true;
+    audio.muted = true;
+    audio.playsInline = true;
+    audio.setAttribute('tabindex', '-1');
+    audio.style.display = 'none';
+    document.body.appendChild(audio);
+
+    startAudioPlayback();
+
+    // Subtle CSS nudge every 60s (helps some Silk firmwares)
+    nudgeInterval = setInterval(() => {
+      document.body.style.opacity = '0.999';
+      setTimeout(() => { document.body.style.opacity = '1'; }, 50);
+      // Also nudge a CSS variable (invisible, but triggers style recalc)
+      document.body.style.setProperty('--keepalive-nudge', Math.random());
+      console.log('[KeepAlive] CSS nudge');
+    }, 60000);
+
+    // requestAnimationFrame loop (simulates activity, helps on some devices)
+    function rafNudge() {
+      // Toggle a hidden property to trigger layout
+      document.body.dataset.keepalive = String(Date.now() % 2);
+      rafId = requestAnimationFrame(rafNudge);
+    }
+    rafId = requestAnimationFrame(rafNudge);
+
+    // Log visibility changes (for debugging Silk's backgrounding)
+    function onVisibilityChange() {
+      console.log('[KeepAlive] Document visibility:', document.visibilityState);
+      if (document.visibilityState === 'visible' && audio.paused) {
+        startAudioPlayback();
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    // Cleanup on unmount
+    return () => {
+      if (audio) {
+        audio.pause();
+        document.body.removeChild(audio);
+      }
+      clearInterval(nudgeInterval);
+      cancelAnimationFrame(rafId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pointerdown', () => {}, true);
+      window.removeEventListener('touchstart', () => {}, true);
+    };
+  }, []);
   const processRemoteData = (payload, updated_at) => {
     if (!payload) return false;
 
