@@ -1046,7 +1046,9 @@ function ChoreApp() {
 
     // Create and append hidden audio element
     audio = document.createElement('audio');
-    audio.src = '/silent-loop.mp3';
+    // Use Vite's BASE_URL for correct path resolution in subdirectory deployments
+    const baseUrl = import.meta.env.BASE_URL || '/';
+    audio.src = baseUrl + 'silent-loop.mp3';
     audio.loop = true;
     audio.muted = true;
     audio.playsInline = true;
