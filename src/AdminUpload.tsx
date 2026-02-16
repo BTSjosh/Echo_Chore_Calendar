@@ -3,6 +3,7 @@ import {
   STORAGE_KEY,
   POSTPONE_KEY,
   CHORE_DEFS_KEY,
+  HISTORY_KEY,
   parseStoredProgress,
   saveToLocalStorage,
   loadFromLocalStorage,
@@ -13,7 +14,8 @@ import {
 import { getFormattedDate } from './utils/dates';
 import { HOUSEHOLD } from './utils/chores';
 import { normalizeSupabaseUrl } from './utils/sync';
-import type { Chore, ProgressRecord, PostponeEntry } from './types';
+import { loadHistory, exportHistoryAsCsv, saveHistory, mergeHistory } from './utils/history';
+import type { Chore, ProgressRecord, PostponeEntry, HistoryEvent } from './types';
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim();
 const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
@@ -78,6 +80,7 @@ export default function AdminUpload() {
         chores: parsed.chores,
         progress: parsed.progress || {},
         postponedOverrides: parsed.postponedOverrides || [],
+        history: parsed.history || [],
       };
 
       setStatus('Uploading to Supabase...');
@@ -96,6 +99,7 @@ export default function AdminUpload() {
   const handleLocalBackup = () => {
     const progress = loadFromLocalStorage() ?? {};
     const postponedOverrides = loadPostpones();
+    const history = loadHistory();
     const payload = JSON.stringify(
       {
         version: "2.0",
@@ -103,6 +107,7 @@ export default function AdminUpload() {
         household: HOUSEHOLD,
         progress,
         postponedOverrides,
+        history,
       },
       null,
       2
@@ -153,6 +158,11 @@ export default function AdminUpload() {
         savePostpones(restoredPostpones);
       }
 
+      if (Array.isArray(parsed?.history)) {
+        const merged = mergeHistory(loadHistory(), parsed.history as HistoryEvent[]);
+        saveHistory(merged);
+      }
+
       setLocalStatus('\u2705 Local restore saved. Refresh the app to apply changes.');
     } catch (error) {
       console.error('Local restore failed:', error);
@@ -163,12 +173,45 @@ export default function AdminUpload() {
     }
   };
 
+  const triggerDownload = (content: string, filename: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportHistoryCsv = () => {
+    const history = loadHistory();
+    if (history.length === 0) {
+      setLocalStatus('No history events to export.');
+      return;
+    }
+    const csv = exportHistoryAsCsv(history);
+    triggerDownload(csv, `chore-history-${getFormattedDate()}.csv`, 'text/csv');
+  };
+
+  const handleExportHistoryJson = () => {
+    const history = loadHistory();
+    if (history.length === 0) {
+      setLocalStatus('No history events to export.');
+      return;
+    }
+    const json = JSON.stringify(history, null, 2);
+    triggerDownload(json, `chore-history-${getFormattedDate()}.json`, 'application/json');
+  };
+
   const handleClearLocalData = () => {
     if (window.confirm('\u26A0\uFE0F This will delete local progress, history, and postpones for this browser.')) {
       try {
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(POSTPONE_KEY);
         localStorage.removeItem(CHORE_DEFS_KEY);
+        localStorage.removeItem(HISTORY_KEY);
         setLocalStatus('\u2705 Local data cleared. Refresh the app to reload seed chores.');
       } catch (error) {
         console.error('Failed to clear local data:', error);
@@ -240,6 +283,20 @@ export default function AdminUpload() {
                   className="rounded-full border border-slate-700 bg-[#1a1a1a] px-5 py-2 text-sm font-semibold text-slate-200 shadow-sm hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Restore from File
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportHistoryCsv}
+                  className="rounded-full border border-slate-700 bg-[#1a1a1a] px-5 py-2 text-sm font-semibold text-slate-200 shadow-sm hover:bg-slate-800"
+                >
+                  Export History (CSV)
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportHistoryJson}
+                  className="rounded-full border border-slate-700 bg-[#1a1a1a] px-5 py-2 text-sm font-semibold text-slate-200 shadow-sm hover:bg-slate-800"
+                >
+                  Export History (JSON)
                 </button>
                 <button
                   type="button"

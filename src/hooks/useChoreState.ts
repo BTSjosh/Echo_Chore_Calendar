@@ -26,6 +26,8 @@ import { getDateKey, toDateOnly } from '../utils/dates';
 
 import { mergePostpones, extractRemoteChores, extractRemoteProgress } from '../utils/sync';
 
+import { appendHistoryEvent, loadHistory, saveHistory, mergeHistory } from '../utils/history';
+
 import type { Chore, PostponeEntry, RawImportedChore, RemotePayload } from '../types';
 
 export interface UseChoreStateReturn {
@@ -89,13 +91,25 @@ export default function useChoreState(): UseChoreStateReturn {
 
   const toggleCompleted = (subject: string, currentDate: Date) => {
     setChores((prev) =>
-      prev.map((chore) =>
-        chore.subject === subject
-          ? chore.completed
-            ? { ...chore, completed: false, completedBy: [] }
-            : advanceRotation({ ...chore, completed: true, completedBy: [] }, currentDate)
-          : chore
-      )
+      prev.map((chore) => {
+        if (chore.subject !== subject) return chore;
+        if (chore.completed) {
+          appendHistoryEvent({
+            action: 'uncompleted',
+            choreSubject: subject,
+            members: [],
+            dueDate: getDateKey(currentDate),
+          });
+          return { ...chore, completed: false, completedBy: [] };
+        }
+        appendHistoryEvent({
+          action: 'completed',
+          choreSubject: subject,
+          members: [],
+          dueDate: getDateKey(currentDate),
+        });
+        return advanceRotation({ ...chore, completed: true, completedBy: [] }, currentDate);
+      })
     );
   };
 
@@ -106,12 +120,19 @@ export default function useChoreState(): UseChoreStateReturn {
         if (chore.subject !== subject) return chore;
         const assigned = getAssignedMembers(chore, currentDate);
         const completedBy = getCompletedBy(chore, assigned);
-        const nextCompletedBy = completedBy.includes(member)
+        const removing = completedBy.includes(member);
+        const nextCompletedBy = removing
           ? completedBy.filter((name) => name !== member)
           : [...completedBy, member];
         if (completedBy.length === 0 && nextCompletedBy.length > 0) {
           shouldAutoClose = true;
         }
+        appendHistoryEvent({
+          action: removing ? 'uncompleted' : 'completed',
+          choreSubject: subject,
+          members: [member],
+          dueDate: getDateKey(currentDate),
+        });
         const completed =
           assigned.length > 1
             ? assigned.every((name) => nextCompletedBy.includes(name))
@@ -124,6 +145,13 @@ export default function useChoreState(): UseChoreStateReturn {
   };
 
   const postponeToDate = (subject: string, fromDateKey: string, toDate: string) => {
+    appendHistoryEvent({
+      action: 'postponed',
+      choreSubject: subject,
+      members: [],
+      dueDate: fromDateKey,
+      postponedTo: toDate,
+    });
     setPostponedOverrides((prev) => {
       const next = prev.filter(
         (override) =>
@@ -169,6 +197,11 @@ export default function useChoreState(): UseChoreStateReturn {
       mergeRemotePostpones(remotePostpones);
     }
 
+    if (Array.isArray(payload?.history)) {
+      const merged = mergeHistory(loadHistory(), payload.history);
+      saveHistory(merged);
+    }
+
     void updated_at; // consumed by useChoreSync
     return true;
   };
@@ -201,6 +234,13 @@ export default function useChoreState(): UseChoreStateReturn {
             );
             if (!alreadyExists) {
               newOverrides.push({ subject, fromDate: todayKey, toDate: tomorrowKey });
+              appendHistoryEvent({
+                action: 'auto_postponed',
+                choreSubject: subject,
+                members: [],
+                dueDate: todayKey,
+                postponedTo: tomorrowKey,
+              });
             }
           });
           return newOverrides;

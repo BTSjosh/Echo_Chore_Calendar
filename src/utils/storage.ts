@@ -3,6 +3,7 @@ import type { ChoreProgress, ProgressFieldKey, ProgressRecord, PostponeEntry, Ch
 export const STORAGE_KEY = 'echo-chore-schedule';
 export const POSTPONE_KEY = 'echo-chore-postpones';
 export const CHORE_DEFS_KEY = 'echo-chore-definitions';
+export const HISTORY_KEY = 'echo-chore-history';
 export const ACCESS_CODE_KEY = 'echo-chore-access-code';
 
 export const PROGRESS_FIELDS: ProgressFieldKey[] = [

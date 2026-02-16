@@ -116,7 +116,18 @@ export interface RemotePayload {
   chores?: RawImportedChore[];
   progress?: ProgressRecord | ChoreProgress[];
   postponedOverrides?: PostponeEntry[];
+  history?: HistoryEvent[];
   [key: string]: unknown;
+}
+
+export interface HistoryEvent {
+  id: string;              // crypto.randomUUID()
+  timestamp: string;       // ISO 8601
+  action: "completed" | "uncompleted" | "postponed" | "auto_postponed";
+  choreSubject: string;
+  members: string[];       // who completed it (or empty for postpone)
+  dueDate?: string;        // YYYY-MM-DD — the date the chore was due
+  postponedTo?: string;    // YYYY-MM-DD — only for postpone actions
 }
 
 export type TabName = "Yesterday" | "Today" | "This Week" | "This Month";
