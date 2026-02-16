@@ -9,6 +9,7 @@ import {
   type PostponeStat,
   type TimeOfDayBucket,
   type PunctualityStat,
+  type MissedPatternStat,
 } from './utils/analytics';
 
 const PERIODS: { value: Period; label: string }[] = [
@@ -185,6 +186,25 @@ function TimeOfDaySection({ data }: { data: TimeOfDayBucket[] }) {
   );
 }
 
+function MissedPatternsSection({ data }: { data: MissedPatternStat[] }) {
+  if (data.length === 0) return <EmptyState message="No frequently missed chores detected." />;
+  const max = data[0].windowSize;
+  return (
+    <div>
+      {data.map((s) => (
+        <BarRow
+          key={s.choreSubject}
+          label={s.choreSubject}
+          value={s.missedCount}
+          maxValue={max}
+          color="bg-red-500"
+          suffix={`${s.missedCount} of ${s.windowSize} wks`}
+        />
+      ))}
+    </div>
+  );
+}
+
 function PunctualitySection({ data }: { data: PunctualityStat[] }) {
   if (data.length === 0) return <EmptyState message="No punctuality data yet." />;
   return (
@@ -246,6 +266,10 @@ export default function SummaryDashboard() {
 
           <Section title="Avg Days Early / Late">
             <PunctualitySection data={analytics.punctuality} />
+          </Section>
+
+          <Section title="Frequently Missed (Last 4 Weeks)">
+            <MissedPatternsSection data={analytics.missedPatterns} />
           </Section>
         </div>
 

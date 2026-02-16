@@ -41,12 +41,20 @@ export interface PunctualityStat {
   sampleCount: number;
 }
 
+export interface MissedPatternStat {
+  choreSubject: string;
+  missedCount: number;
+  windowSize: number;
+  windowLabel: string;
+}
+
 export interface AnalyticsResult {
   personCompletion: PersonCompletionStat[];
   choreCompletion: ChoreCompletionStat[];
   postponeFrequency: PostponeStat[];
   timeOfDay: TimeOfDayBucket[];
   punctuality: PunctualityStat[];
+  missedPatterns: MissedPatternStat[];
   totalEvents: number;
   rangeLabel: string;
 }
@@ -188,6 +196,39 @@ export const computePunctuality = (events: HistoryEvent[], household: string[]):
     .sort((a, b) => a.averageDaysOffset - b.averageDaysOffset);
 };
 
+export const computeMissedPatterns = (allEvents: HistoryEvent[]): MissedPatternStat[] => {
+  const WINDOW_WEEKS = 4;
+  const now = new Date();
+  const cutoff = new Date(now);
+  cutoff.setDate(cutoff.getDate() - WINDOW_WEEKS * 7);
+  const cutoffMs = cutoff.getTime();
+
+  const weekCounts = new Map<string, Set<number>>();
+
+  for (const e of allEvents) {
+    if (e.action !== 'auto_postponed') continue;
+    const ts = new Date(e.timestamp).getTime();
+    if (ts < cutoffMs) continue;
+    const weekNum = Math.floor((ts - cutoffMs) / (7 * 24 * 60 * 60 * 1000));
+    let weeks = weekCounts.get(e.choreSubject);
+    if (!weeks) {
+      weeks = new Set();
+      weekCounts.set(e.choreSubject, weeks);
+    }
+    weeks.add(weekNum);
+  }
+
+  return [...weekCounts.entries()]
+    .filter(([, weeks]) => weeks.size >= 2)
+    .map(([choreSubject, weeks]) => ({
+      choreSubject,
+      missedCount: weeks.size,
+      windowSize: WINDOW_WEEKS,
+      windowLabel: `last ${WINDOW_WEEKS} weeks`,
+    }))
+    .sort((a, b) => b.missedCount - a.missedCount);
+};
+
 const formatRangeLabel = (period: Period, range: DateRange | null): string => {
   if (!range) return 'All Time';
   const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -210,6 +251,7 @@ export const computeAnalytics = (
     postponeFrequency: computePostponeFrequency(events),
     timeOfDay: computeTimeOfDay(events),
     punctuality: computePunctuality(events, household),
+    missedPatterns: computeMissedPatterns(allEvents),
     totalEvents: events.length,
     rangeLabel: formatRangeLabel(period, range),
   };

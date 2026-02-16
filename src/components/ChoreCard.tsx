@@ -12,6 +12,7 @@ interface ChoreCardProps {
   expandedChore: string | null;
   activeTab: TabName;
   remainingWeekDates: Date[];
+  originalDueDate?: string;
   onToggleDescription: (subject: string) => void;
   onToggleCompleted: (subject: string) => void;
   onOpenPostponeSelector: (subject: string) => void;
@@ -24,6 +25,7 @@ export default function ChoreCard({
   expandedChore,
   activeTab,
   remainingWeekDates,
+  originalDueDate,
   onToggleDescription,
   onToggleCompleted,
   onOpenPostponeSelector,
@@ -75,12 +77,14 @@ export default function ChoreCard({
               </span>
             ))}
           </p>
-          <p className="mt-2 text-[0.7rem] uppercase tracking-[0.2em] text-slate-200 scale-x-125 origin-left">
-            {getNextDueDate(chore, currentDate).toLocaleDateString("en-US", {
-              weekday: "long",
-              month: "short",
-              day: "numeric",
-            })}
+          <p className={"mt-2 text-[0.7rem] uppercase tracking-[0.2em] scale-x-125 origin-left " + (originalDueDate ? "text-red-400 font-semibold" : "text-slate-200")}>
+            {originalDueDate
+              ? `Originally due ${new Date(originalDueDate + 'T00:00:00').toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}`
+              : getNextDueDate(chore, currentDate).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "short",
+                  day: "numeric",
+                })}
           </p>
         </div>
 
