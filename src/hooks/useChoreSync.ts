@@ -115,7 +115,10 @@ export default function useChoreSync(
     }
 
     let isActive = true;
+    let hiddenSince = 0;
+    const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
+    // Unconditional fetch — always processes remote data regardless of timestamp
     const loadRemote = async () => {
       try {
         const result = await fetchRemoteSnapshot();
@@ -133,11 +136,21 @@ export default function useChoreSync(
       }
     };
 
+    // Always fetch fresh data on mount
     loadRemote();
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        checkForUpdates(true);
+      if (document.visibilityState === 'hidden') {
+        hiddenSince = Date.now();
+      } else if (document.visibilityState === 'visible') {
+        const wasHiddenFor = hiddenSince ? Date.now() - hiddenSince : 0;
+        if (wasHiddenFor >= STALE_THRESHOLD_MS) {
+          // Tab was hidden long enough that data may be stale — force full refresh
+          loadRemote();
+        } else {
+          // Quick alt-tab — lightweight check with timestamp guard
+          checkForUpdates(true);
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);

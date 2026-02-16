@@ -40,6 +40,10 @@ export interface UseChoreStateReturn {
   replaceChores: (nextChores: Chore[]) => void;
   mergeRemotePostpones: (remote: PostponeEntry[]) => void;
   processRemoteData: (payload: RemotePayload, updated_at: string | null) => boolean;
+  /** Mark an overdue chore as completed late and remove the override. */
+  completeLateOverdue: (subject: string, fromDate: string) => void;
+  /** Abandon an overdue chore (won't be completed) and remove the override. */
+  abandonOverdue: (subject: string, fromDate: string) => void;
   /**
    * Auto-postpone all undone chores from `today` to `tomorrow`.
    * Used by the midnight rollover hook.
@@ -213,6 +217,37 @@ export default function useChoreState(): UseChoreStateReturn {
     return true;
   };
 
+  const removeOverride = (subject: string, fromDate: string) => {
+    setPostponedOverrides((prev) =>
+      prev.filter(
+        (override) =>
+          !(override.subject === subject && override.fromDate === fromDate)
+      )
+    );
+  };
+
+  const completeLateOverdue = (subject: string, fromDate: string) => {
+    dirtyRef.current = true;
+    appendHistoryEvent({
+      action: 'completed_late',
+      choreSubject: subject,
+      members: [],
+      dueDate: fromDate,
+    });
+    removeOverride(subject, fromDate);
+  };
+
+  const abandonOverdue = (subject: string, fromDate: string) => {
+    dirtyRef.current = true;
+    appendHistoryEvent({
+      action: 'abandoned',
+      choreSubject: subject,
+      members: [],
+      dueDate: fromDate,
+    });
+    removeOverride(subject, fromDate);
+  };
+
   const autoPostponeUndone = (today: Date) => {
     dirtyRef.current = true;
     const todayNorm = toDateOnly(today);
@@ -266,6 +301,8 @@ export default function useChoreState(): UseChoreStateReturn {
     toggleCompleted,
     toggleMemberCompleted,
     postponeToDate,
+    completeLateOverdue,
+    abandonOverdue,
     replaceChores,
     mergeRemotePostpones,
     processRemoteData,

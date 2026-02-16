@@ -32,7 +32,7 @@ import ChoreCard from './components/ChoreCard'
 import AssigneePickerModal from './components/AssigneePickerModal'
 import PostponeSelectorModal from './components/PostponeSelectorModal'
 
-import type { Chore, TabName } from './types'
+import type { Chore, DisplayChore, TabName } from './types'
 
 function ChoreApp() {
   const [activeTab, setActiveTab] = useState<TabName>("Today");
@@ -50,6 +50,8 @@ function ChoreApp() {
     toggleCompleted,
     toggleMemberCompleted,
     postponeToDate,
+    completeLateOverdue,
+    abandonOverdue,
     processRemoteData,
     autoPostponeUndone,
   } = choreState;
@@ -67,7 +69,7 @@ function ChoreApp() {
 
   const visibleChores = useMemo(() => {
     const today = toDateOnly(currentDate);
-    let filtered: Chore[] = [];
+    let filtered: DisplayChore[] = [];
 
     const isPostponedFrom = (subject: string, dateKey: string) =>
       postponedOverrides.some(
@@ -105,16 +107,6 @@ function ChoreApp() {
       return nextDates;
     };
 
-    const isDueToday = (chore: Chore) => {
-      if (isPostponedFrom(chore.subject, todayKey)) {
-        return false;
-      }
-      if (isOverrideDueOn(chore.subject, todayKey)) {
-        return true;
-      }
-      return isDueOnDate(chore, today);
-    };
-
     const isDueYesterday = (chore: Chore) => {
       const yesterday = toDateOnly(new Date(today));
       yesterday.setDate(yesterday.getDate() - 1);
@@ -131,7 +123,39 @@ function ChoreApp() {
     if (activeTab === "Yesterday") {
       filtered = chores.filter((chore) => isDueYesterday(chore));
     } else if (activeTab === "Today") {
-      filtered = chores.filter((chore) => isDueToday(chore));
+      // Instance-aware logic: produce separate overdue and normal cards
+      for (const chore of chores) {
+        // Find overdue overrides targeting today (fromDate < todayKey)
+        const overdueOverrides = postponedOverrides.filter(
+          (o) => o.subject === chore.subject && o.toDate === todayKey && o.fromDate < todayKey
+        );
+        // Pick the earliest fromDate
+        const earliestOverdue = overdueOverrides.length > 0
+          ? overdueOverrides.reduce((earliest, o) => o.fromDate < earliest.fromDate ? o : earliest)
+          : null;
+
+        if (earliestOverdue) {
+          const originalDate = parseDateKey(earliestOverdue.fromDate);
+          const overdueAssignees = originalDate
+            ? getAssignedMembers(chore, originalDate)
+            : getAssignedMembers(chore, today);
+          filtered.push({
+            ...chore,
+            _instanceType: 'overdue',
+            _originalDueDate: earliestOverdue.fromDate,
+            _overdueAssignees: overdueAssignees,
+          });
+        }
+
+        // Check if chore is normally due today AND not postponed FROM today
+        const normallyDueToday = isDueOnDate(chore, today) && !isPostponedFrom(chore.subject, todayKey);
+        if (normallyDueToday) {
+          filtered.push({
+            ...chore,
+            _instanceType: 'normal',
+          });
+        }
+      }
     } else if (activeTab === "This Week") {
       const start = getStartOfWeek(today);
       const end = getEndOfWeek(today);
@@ -149,12 +173,18 @@ function ChoreApp() {
     }
 
     if (selectedMember !== "All") {
-      filtered = filtered.filter((chore) =>
-        getAssignedMembers(chore, currentDate).includes(selectedMember)
-      );
+      filtered = filtered.filter((chore) => {
+        if (chore._instanceType === 'overdue' && chore._overdueAssignees) {
+          return chore._overdueAssignees.includes(selectedMember);
+        }
+        return getAssignedMembers(chore, currentDate).includes(selectedMember);
+      });
     }
 
     filtered = [...filtered].sort((a, b) => {
+      // Overdue cards always sort before normal cards
+      if (a._instanceType === 'overdue' && b._instanceType !== 'overdue') return -1;
+      if (a._instanceType !== 'overdue' && b._instanceType === 'overdue') return 1;
       const aDone = isChoreComplete(a, getAssignedMembers(a, currentDate), currentDate);
       const bDone = isChoreComplete(b, getAssignedMembers(b, currentDate), currentDate);
       if (aDone === bDone) return 0;
@@ -164,18 +194,17 @@ function ChoreApp() {
     return filtered;
   }, [activeTab, chores, currentDate, selectedMember, postponedOverrides, todayKey]);
 
-  const overdueSubjects = useMemo(() => {
-    const subjects = new Map<string, string>();
-    for (const override of postponedOverrides) {
-      if (override.toDate === todayKey && override.fromDate < todayKey) {
-        const existing = subjects.get(override.subject);
-        if (!existing || override.fromDate < existing) {
-          subjects.set(override.subject, override.fromDate);
-        }
-      }
-    }
-    return subjects;
-  }, [postponedOverrides, todayKey]);
+  const overdueCount = useMemo(() => {
+    return visibleChores.filter((c) => c._instanceType === 'overdue').length;
+  }, [visibleChores]);
+
+  const handleCompleteLateOverdue = (subject: string, fromDate: string) => {
+    completeLateOverdue(subject, fromDate);
+  };
+
+  const handleAbandonOverdue = (subject: string, fromDate: string) => {
+    abandonOverdue(subject, fromDate);
+  };
 
   const handleToggleCompleted = (subject: string) => {
     toggleCompleted(subject, currentDate);
@@ -230,11 +259,11 @@ function ChoreApp() {
     setPostponeTarget(null);
   };
 
-  // Build a map to count subject collisions for keys
-  const subjectCount: Record<string, number> = {};
-  visibleChores.forEach((chore) => {
-    subjectCount[chore.subject] = (subjectCount[chore.subject] || 0) + 1;
-  });
+  // Build a key for each visible chore using instanceType to disambiguate
+  const choreKey = (chore: DisplayChore) => {
+    if (chore._instanceType === 'overdue') return `${chore.subject}-overdue`;
+    return chore.subject;
+  };
 
   return (
     <div className="min-h-screen bg-[#121212] text-slate-100">
@@ -250,13 +279,13 @@ function ChoreApp() {
             <div className="flex items-center gap-2 shrink-0">
               <a
                 href="/#/stats"
-                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 transition"
+                className="flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-6 py-2.5 text-lg font-semibold min-w-[9rem] text-slate-100 hover:bg-slate-800 hover:border-slate-600 shadow transition"
               >
                 Stats
               </a>
               <a
                 href="/#/admin"
-                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 transition"
+                className="flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-6 py-2.5 text-lg font-semibold min-w-[9rem] text-slate-100 hover:bg-slate-800 hover:border-slate-600 shadow transition"
               >
                 Settings
               </a>
@@ -264,7 +293,7 @@ function ChoreApp() {
                 type="button"
                 onClick={handleReloadData}
                 disabled={isReloading}
-                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-6 py-2.5 text-lg font-semibold min-w-[9rem] text-slate-100 hover:bg-slate-800 hover:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed shadow transition"
                 title="Refresh chores from cloud"
               >
                 {isReloading ? '\u21BB Refreshing...' : '\u21BB Refresh'}
@@ -301,10 +330,10 @@ function ChoreApp() {
                   type="button"
                   onClick={() => setSelectedMember(member)}
                   className={
-                    "rounded-full px-4 py-1.5 text-sm font-semibold transition " +
+                    "rounded-full px-6 py-2.5 text-lg font-semibold transition min-w-[11rem] " +
                     (isActive
-                      ? "bg-green-500 text-slate-950"
-                      : "bg-[#353E43] text-slate-200 hover:bg-slate-700")
+                      ? "bg-green-500 text-slate-950 shadow"
+                      : "bg-[#353E43] text-slate-200 shadow-sm hover:bg-slate-800")
                   }
                 >
                   {member}
@@ -355,33 +384,34 @@ function ChoreApp() {
           </div>
             </header>
 
-            {activeTab === "Today" && overdueSubjects.size > 0 && (
-              <div className="mb-6 rounded-2xl bg-red-500/10 border border-red-500/30 px-6 py-3">
+            {activeTab === "Today" && overdueCount > 0 && (
+              <div className="mb-6 rounded-2xl bg-red-500/10 border border-red-500/30 px-4 py-3 w-fit">
                 <p className="text-lg font-semibold text-red-400">
-                  ⚠ {overdueSubjects.size} overdue chore{overdueSubjects.size !== 1 ? 's' : ''} from previous days
+                  ⚠ {overdueCount} overdue chore{overdueCount !== 1 ? 's' : ''} from previous days
                 </p>
               </div>
             )}
 
             <div className="space-y-6">
-              {visibleChores.map((chore) => {
-                const key = subjectCount[chore.subject] > 1 && chore.id ? `${chore.subject}-${chore.id}` : chore.subject;
-                return (
+              {visibleChores.map((chore) => (
                   <ChoreCard
-                    key={key}
+                    key={choreKey(chore)}
                     chore={chore}
                     currentDate={currentDate}
                     expandedChore={expandedChore}
                     activeTab={activeTab}
                     remainingWeekDates={remainingWeekDates}
-                    originalDueDate={activeTab === "Today" ? overdueSubjects.get(chore.subject) : undefined}
+                    originalDueDate={chore._originalDueDate}
+                    overdueAssignees={chore._overdueAssignees}
+                    instanceType={chore._instanceType}
                     onToggleDescription={toggleDescription}
                     onToggleCompleted={handleToggleCompleted}
+                    onCompleteLateOverdue={handleCompleteLateOverdue}
+                    onAbandonOverdue={handleAbandonOverdue}
                     onOpenPostponeSelector={openPostponeSelector}
                     onOpenAssigneePicker={openAssigneePicker}
                   />
-                );
-              })}
+              ))}
             </div>
           </main>
       </div>

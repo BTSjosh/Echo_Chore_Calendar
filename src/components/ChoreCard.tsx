@@ -1,20 +1,25 @@
+import { useState } from 'react';
 import {
   getAssignedMembers,
   getCompletedBy,
   getNextDueDate,
   isChoreComplete,
 } from '../utils/chores';
-import type { Chore, TabName } from '../types';
+import type { DisplayChore, TabName } from '../types';
 
 interface ChoreCardProps {
-  chore: Chore;
+  chore: DisplayChore;
   currentDate: Date;
   expandedChore: string | null;
   activeTab: TabName;
   remainingWeekDates: Date[];
   originalDueDate?: string;
+  overdueAssignees?: string[];
+  instanceType?: 'overdue' | 'normal';
   onToggleDescription: (subject: string) => void;
   onToggleCompleted: (subject: string) => void;
+  onCompleteLateOverdue: (subject: string, fromDate: string) => void;
+  onAbandonOverdue: (subject: string, fromDate: string) => void;
   onOpenPostponeSelector: (subject: string) => void;
   onOpenAssigneePicker: (subject: string) => void;
 }
@@ -26,12 +31,18 @@ export default function ChoreCard({
   activeTab,
   remainingWeekDates,
   originalDueDate,
+  overdueAssignees,
+  instanceType,
   onToggleDescription,
   onToggleCompleted,
+  onCompleteLateOverdue,
+  onAbandonOverdue,
   onOpenPostponeSelector,
   onOpenAssigneePicker,
 }: ChoreCardProps) {
-  const assignedList = getAssignedMembers(chore, currentDate);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const isOverdue = instanceType === 'overdue';
+  const assignedList = isOverdue && overdueAssignees ? overdueAssignees : getAssignedMembers(chore, currentDate);
   const completedBy = getCompletedBy(chore, assignedList);
   const complete = isChoreComplete(chore, assignedList, currentDate);
 
@@ -47,7 +58,10 @@ export default function ChoreCard({
         }
       }}
       className={
-        "rounded-3xl bg-[#353E43] p-4 shadow-xl shadow-black/30 border border-green-500/20 transition hover:shadow-2xl hover:shadow-black/40 hover:border-green-400/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400 " +
+        "rounded-3xl bg-[#353E43] p-4 shadow-xl shadow-black/30 border transition hover:shadow-2xl hover:shadow-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400 " +
+        (isOverdue
+          ? "border-red-500/40 hover:border-red-400/60 "
+          : "border-green-500/20 hover:border-green-400/40 ") +
         (complete ? "opacity-70" : "")
       }
     >
@@ -55,6 +69,9 @@ export default function ChoreCard({
         <div className="min-w-[220px] flex-1">
           <h2 className="text-2xl lg:text-3xl font-semibold text-slate-100 scale-x-125 origin-left">
             {chore.subject}
+            {isOverdue && (
+              <span className="ml-3 text-sm font-bold uppercase tracking-wider text-red-400">OVERDUE</span>
+            )}
           </h2>
           {expandedChore === chore.subject && (
             <p className="mt-2 text-base text-slate-200">
@@ -89,46 +106,97 @@ export default function ChoreCard({
         </div>
 
         <div className="flex flex-wrap items-center gap-6 self-center">
-          {activeTab === "Today" && remainingWeekDates.length > 0 && (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenPostponeSelector(chore.subject);
-              }}
-              className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
-              style={{ marginRight: '0.5rem' }}
-            >
-              Postpone
-            </button>
-          )}
-          {assignedList.length > 1 ? (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenAssigneePicker(chore.subject);
-              }}
-              className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
-            >
-              Mark Done
-            </button>
+          {isOverdue ? (
+            showConfirm ? (
+              <div className="flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                <p className="text-base font-semibold text-amber-300 text-center">Are you sure you did this?<br />Don't lie!</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (originalDueDate) onCompleteLateOverdue(chore.subject, originalDueDate);
+                    }}
+                    className="rounded-full border border-green-500/40 bg-[#353E43] px-6 py-4 text-base font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[8rem] text-center transition-all duration-150"
+                  >
+                    Yes, Done
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm(false)}
+                    className="rounded-full border border-slate-600 bg-[#353E43] px-6 py-4 text-base font-semibold text-slate-300 hover:bg-[#4a555c] hover:border-slate-500 min-w-[8rem] text-center transition-all duration-150"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setShowConfirm(true);
+                  }}
+                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
+                >
+                  Mark Done
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (originalDueDate) onAbandonOverdue(chore.subject, originalDueDate);
+                  }}
+                  className="rounded-full border border-red-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-red-300 hover:bg-[#4a555c] hover:border-red-400 min-w-[11rem] text-center transition-all duration-150"
+                >
+                  Abandon
+                </button>
+              </div>
+            )
           ) : (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onToggleCompleted(chore.subject);
-              }}
-              className={
-                "rounded-full border px-8 py-5 text-base font-semibold transition min-w-[11rem] text-center " +
-                (chore.completed
-                  ? "border-green-400 bg-green-500/20 text-[#a7f3d0]"
-                  : "border-green-500/40 bg-[#353E43] text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 transition-all duration-150")
-              }
-            >
-              {chore.completed ? "\u2713 Done" : "Mark Done"}
-            </button>
+            <>
+              {activeTab === "Today" && remainingWeekDates.length > 0 && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOpenPostponeSelector(chore.subject);
+                  }}
+                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
+                  style={{ marginRight: '0.5rem' }}
+                >
+                  Postpone
+                </button>
+              )}
+              {assignedList.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOpenAssigneePicker(chore.subject);
+                  }}
+                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
+                >
+                  Mark Done
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleCompleted(chore.subject);
+                  }}
+                  className={
+                    "rounded-full border px-8 py-5 text-base font-semibold transition min-w-[11rem] text-center " +
+                    (chore.completed
+                      ? "border-green-400 bg-green-500/20 text-[#a7f3d0]"
+                      : "border-green-500/40 bg-[#353E43] text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 transition-all duration-150")
+                  }
+                >
+                  {chore.completed ? "\u2713 Done" : "Mark Done"}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

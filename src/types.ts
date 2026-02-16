@@ -51,6 +51,12 @@ export interface ChoreProgress {
 
 export type Chore = ChoreDefinition & ChoreProgress;
 
+export type DisplayChore = Chore & {
+  _instanceType?: 'overdue' | 'normal';
+  _originalDueDate?: string;
+  _overdueAssignees?: string[];
+};
+
 export type ProgressFieldKey = keyof ChoreProgress;
 
 export type ProgressRecord = Record<string, ChoreProgress>;
@@ -123,7 +129,7 @@ export interface RemotePayload {
 export interface HistoryEvent {
   id: string;              // crypto.randomUUID()
   timestamp: string;       // ISO 8601
-  action: "completed" | "uncompleted" | "postponed" | "auto_postponed";
+  action: "completed" | "uncompleted" | "postponed" | "auto_postponed" | "completed_late" | "abandoned";
   choreSubject: string;
   members: string[];       // who completed it (or empty for postpone)
   dueDate?: string;        // YYYY-MM-DD — the date the chore was due
