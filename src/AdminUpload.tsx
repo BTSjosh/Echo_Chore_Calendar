@@ -329,12 +329,18 @@ export default function AdminUpload() {
             </ul>
           </div>
 
-          <div className="pt-6 border-t border-green-500/10">
+          <div className="pt-6 border-t border-green-500/10 flex flex-wrap gap-4">
             <a
               href="/"
               className="inline-block rounded-full border-2 border-green-500/20 px-8 py-3 text-lg font-semibold text-slate-300 hover:bg-[#1a1a1a] hover:border-green-400/40 transition"
             >
               &larr; Back to Chore Dashboard
+            </a>
+            <a
+              href="/#/stats"
+              className="inline-block rounded-full border-2 border-green-500/20 px-8 py-3 text-lg font-semibold text-slate-300 hover:bg-[#1a1a1a] hover:border-green-400/40 transition"
+            >
+              View Stats
             </a>
           </div>
         </div>

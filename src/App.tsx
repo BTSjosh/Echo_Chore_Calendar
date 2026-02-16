@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import AdminUpload from './AdminUpload'
+import SummaryDashboard from './SummaryDashboard'
 import './App.css'
 
 import {
@@ -232,15 +233,23 @@ function ChoreApp() {
                 Plimmer Chore Dashboard
               </h1>
             </div>
-            <button
-              type="button"
-              onClick={handleReloadData}
-              disabled={isReloading}
-              className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
-              title="Refresh chores from cloud"
-            >
-              {isReloading ? '\u21BB Refreshing...' : '\u21BB Refresh'}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href="/#/stats"
+                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 transition"
+              >
+                Stats
+              </a>
+              <button
+                type="button"
+                onClick={handleReloadData}
+                disabled={isReloading}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                title="Refresh chores from cloud"
+              >
+                {isReloading ? '\u21BB Refreshing...' : '\u21BB Refresh'}
+              </button>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             {TABS.map((tab) => {
@@ -382,6 +391,7 @@ function App() {
     <Routes>
       <Route path="/" element={<ChoreApp />} />
       <Route path="/admin" element={<AdminUpload />} />
+      <Route path="/stats" element={<SummaryDashboard />} />
     </Routes>
   );
 }
