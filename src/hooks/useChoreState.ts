@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   saveToLocalStorage,
@@ -33,6 +33,7 @@ import type { Chore, PostponeEntry, RawImportedChore, RemotePayload } from '../t
 export interface UseChoreStateReturn {
   chores: Chore[];
   postponedOverrides: PostponeEntry[];
+  dirtyRef: React.RefObject<boolean>;
   toggleCompleted: (subject: string, currentDate: Date) => void;
   toggleMemberCompleted: (subject: string, member: string, currentDate: Date) => boolean;
   postponeToDate: (subject: string, fromDateKey: string, toDate: string) => void;
@@ -47,6 +48,8 @@ export interface UseChoreStateReturn {
 }
 
 export default function useChoreState(): UseChoreStateReturn {
+  const dirtyRef = useRef(false);
+
   const [chores, setChores] = useState<Chore[]>(() => {
     const storedProgress = loadFromLocalStorage();
     const storedDefinitions = loadChoreDefinitions();
@@ -90,6 +93,7 @@ export default function useChoreState(): UseChoreStateReturn {
   };
 
   const toggleCompleted = (subject: string, currentDate: Date) => {
+    dirtyRef.current = true;
     setChores((prev) =>
       prev.map((chore) => {
         if (chore.subject !== subject) return chore;
@@ -114,6 +118,7 @@ export default function useChoreState(): UseChoreStateReturn {
   };
 
   const toggleMemberCompleted = (subject: string, member: string, currentDate: Date): boolean => {
+    dirtyRef.current = true;
     let shouldAutoClose = false;
     setChores((prev) =>
       prev.map((chore) => {
@@ -145,6 +150,7 @@ export default function useChoreState(): UseChoreStateReturn {
   };
 
   const postponeToDate = (subject: string, fromDateKey: string, toDate: string) => {
+    dirtyRef.current = true;
     appendHistoryEvent({
       action: 'postponed',
       choreSubject: subject,
@@ -173,6 +179,7 @@ export default function useChoreState(): UseChoreStateReturn {
 
   const processRemoteData = (payload: RemotePayload, updated_at: string | null): boolean => {
     if (!payload) return false;
+    dirtyRef.current = true;
 
     const remoteDefinitions = extractRemoteChores(payload);
     const remoteProgress = extractRemoteProgress(payload);
@@ -207,6 +214,7 @@ export default function useChoreState(): UseChoreStateReturn {
   };
 
   const autoPostponeUndone = (today: Date) => {
+    dirtyRef.current = true;
     const todayNorm = toDateOnly(today);
     const todayKey = getDateKey(todayNorm);
     const tomorrow = new Date(todayNorm);
@@ -254,6 +262,7 @@ export default function useChoreState(): UseChoreStateReturn {
   return {
     chores,
     postponedOverrides,
+    dirtyRef,
     toggleCompleted,
     toggleMemberCompleted,
     postponeToDate,

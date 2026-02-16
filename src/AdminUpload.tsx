@@ -10,19 +10,21 @@ import {
   savePostpones,
   loadPostpones,
   saveChoreDefinitions,
+  loadChoreDefinitions,
 } from './utils/storage';
 import { getFormattedDate } from './utils/dates';
 import { HOUSEHOLD } from './utils/chores';
-import { normalizeSupabaseUrl } from './utils/sync';
+import {
+  normalizeSupabaseUrl,
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  SUPABASE_TABLE,
+  SUPABASE_REMOTE_ID,
+} from './utils/sync';
 import { loadHistory, exportHistoryAsCsv, saveHistory, mergeHistory } from './utils/history';
-import type { Chore, ProgressRecord, PostponeEntry, HistoryEvent } from './types';
+import type { Chore, PostponeEntry, HistoryEvent } from './types';
 
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim();
-const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
-const SUPABASE_TABLE = (import.meta.env.VITE_SUPABASE_TABLE || 'chore_snapshots').trim();
-const SUPABASE_REMOTE_ID = (import.meta.env.VITE_CHORE_REMOTE_ID || 'current').trim();
-
-const uploadSnapshotToSupabase = async (payload: Record<string, unknown>): Promise<Response> => {
+const uploadFileToSupabase = async (payload: Record<string, unknown>): Promise<Response> => {
   const baseUrl = normalizeSupabaseUrl(SUPABASE_URL);
   if (!baseUrl || !SUPABASE_ANON_KEY) {
     throw new Error('Supabase URL or API key not configured');
@@ -84,7 +86,7 @@ export default function AdminUpload() {
       };
 
       setStatus('Uploading to Supabase...');
-      await uploadSnapshotToSupabase(snapshot);
+      await uploadFileToSupabase(snapshot);
 
       setStatus('\u2705 Upload successful! Refresh the app to see changes.');
     } catch (error) {
@@ -97,6 +99,7 @@ export default function AdminUpload() {
   };
 
   const handleLocalBackup = () => {
+    const chores = loadChoreDefinitions() ?? [];
     const progress = loadFromLocalStorage() ?? {};
     const postponedOverrides = loadPostpones();
     const history = loadHistory();
@@ -105,6 +108,7 @@ export default function AdminUpload() {
         version: "2.0",
         exportedAt: new Date().toISOString(),
         household: HOUSEHOLD,
+        chores,
         progress,
         postponedOverrides,
         history,
@@ -220,129 +224,145 @@ export default function AdminUpload() {
     }
   };
 
+  const supabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+
   return (
-    <div className="min-h-screen bg-[#121212] text-slate-100 flex items-center justify-center p-8">
-      <div className="max-w-2xl w-full bg-[#181818] rounded-3xl shadow-xl shadow-black/30 p-10 border border-green-500/20">
-        <h1 className="text-5xl font-semibold text-slate-100 mb-4">
-          Admin: Upload Chores
-        </h1>
-        <p className="text-xl text-slate-400 mb-8">
-          Upload a JSON file from your local app to update the chore definitions in Supabase.
-        </p>
+    <div className="min-h-screen bg-[#121212] text-slate-100">
+      <div className="mx-auto max-w-3xl px-6 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between gap-4 mb-2">
+            <h1 className="text-4xl font-semibold">Settings</h1>
+            <div className="flex items-center gap-2">
+              <a
+                href="/#/stats"
+                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 transition"
+              >
+                Stats
+              </a>
+              <a
+                href="/#/"
+                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 transition"
+              >
+                &larr; Back
+              </a>
+            </div>
+          </div>
+          <p className="text-sm text-slate-400">
+            Backup, restore, and manage your chore data.
+          </p>
+        </div>
 
         <div className="space-y-6">
-          <div className="border-2 border-dashed border-green-500/20 rounded-2xl p-10 text-center hover:border-green-400/60 transition">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="rounded-full bg-green-500 text-slate-950 px-8 py-4 text-xl font-semibold hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              {uploading ? 'Uploading...' : 'Select JSON File'}
-            </button>
-            <p className="mt-4 text-sm text-slate-400">
-              Expected format: <code className="bg-[#1a1a1a] px-2 py-1 rounded text-slate-200">{'{ "chores": [...], "progress": {...}, "postponedOverrides": [...] }'}</code>
+          {/* Backup & Restore */}
+          <div className="bg-[#181818] border border-green-500/20 rounded-2xl p-6">
+            <h2 className="text-lg font-semibold text-slate-100 mb-1">Backup &amp; Restore</h2>
+            <p className="text-sm text-slate-400 mb-4">
+              Download a full backup of this browser's data, or restore from a previous backup file.
             </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleLocalBackup}
+                className="rounded-full bg-green-500 text-slate-950 px-5 py-2.5 text-sm font-semibold hover:bg-green-400 transition"
+              >
+                Download Backup
+              </button>
+              <button
+                type="button"
+                onClick={() => localFileInputRef.current?.click()}
+                disabled={localBusy}
+                className="rounded-full border border-slate-700 bg-[#232323] px-5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                Restore from File
+              </button>
+            </div>
           </div>
 
-          {status && (
-            <div className={`rounded-2xl p-6 text-lg font-medium ${
-              status.startsWith('\u2705') ? 'bg-green-900/40 text-green-200' :
-              status.startsWith('\u274C') ? 'bg-red-900/40 text-red-200' :
-              'bg-sky-900/40 text-sky-200'
-            }`}>
-              {status}
+          {/* Export History */}
+          <div className="bg-[#181818] border border-green-500/20 rounded-2xl p-6">
+            <h2 className="text-lg font-semibold text-slate-100 mb-1">Export History</h2>
+            <p className="text-sm text-slate-400 mb-4">
+              Download the chore completion history log for analysis.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleExportHistoryCsv}
+                className="rounded-full border border-slate-700 bg-[#232323] px-5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 transition"
+              >
+                Export as CSV
+              </button>
+              <button
+                type="button"
+                onClick={handleExportHistoryJson}
+                className="rounded-full border border-slate-700 bg-[#232323] px-5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 transition"
+              >
+                Export as JSON
+              </button>
             </div>
-          )}
+          </div>
 
-          <div className="rounded-2xl border border-green-500/20 bg-[#1a1a1a] p-8">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
-                  Local Data Tools
+          {/* Cloud Sync */}
+          <div className="bg-[#181818] border border-green-500/20 rounded-2xl p-6">
+            <h2 className="text-lg font-semibold text-slate-100 mb-1">Cloud Sync</h2>
+            {supabaseConfigured ? (
+              <>
+                <p className="text-sm text-slate-400 mb-4">
+                  Changes are automatically pushed to the cloud when you leave the app.
+                  You can also upload a JSON file to overwrite the cloud snapshot directly.
                 </p>
-                <h2 className="mt-2 text-2xl font-semibold text-slate-100">
-                  Backup, restore, or clear this browser
-                </h2>
-                <p className="mt-2 text-sm text-slate-400">
-                  These actions only affect the current device and browser.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
-                  onClick={handleLocalBackup}
-                  className="rounded-full border border-slate-700 bg-[#1a1a1a] px-5 py-2 text-sm font-semibold text-slate-200 shadow-sm hover:bg-slate-800"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="rounded-full border border-slate-700 bg-[#232323] px-5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
-                  Backup to File
+                  {uploading ? 'Uploading...' : 'Upload JSON to Cloud'}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => localFileInputRef.current?.click()}
-                  disabled={localBusy}
-                  className="rounded-full border border-slate-700 bg-[#1a1a1a] px-5 py-2 text-sm font-semibold text-slate-200 shadow-sm hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Restore from File
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportHistoryCsv}
-                  className="rounded-full border border-slate-700 bg-[#1a1a1a] px-5 py-2 text-sm font-semibold text-slate-200 shadow-sm hover:bg-slate-800"
-                >
-                  Export History (CSV)
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportHistoryJson}
-                  className="rounded-full border border-slate-700 bg-[#1a1a1a] px-5 py-2 text-sm font-semibold text-slate-200 shadow-sm hover:bg-slate-800"
-                >
-                  Export History (JSON)
-                </button>
-                <button
-                  type="button"
-                  onClick={handleClearLocalData}
-                  className="rounded-full border border-red-400/60 bg-[#1a1a1a] px-5 py-2 text-sm font-semibold text-red-300 shadow-sm hover:bg-red-950/40"
-                >
-                  Clear Local Data
-                </button>
-              </div>
-            </div>
+              </>
+            ) : (
+              <p className="text-sm text-slate-500">
+                Not configured. Set <code className="text-slate-400">VITE_SUPABASE_URL</code> and <code className="text-slate-400">VITE_SUPABASE_ANON_KEY</code> to enable.
+              </p>
+            )}
 
-            {localStatus && (
-              <div className={`mt-6 rounded-2xl p-5 text-sm font-medium ${
-                localStatus.startsWith('\u2705') ? 'bg-green-900/40 text-green-200' :
-                localStatus.startsWith('\u274C') ? 'bg-red-900/40 text-red-200' :
+            {status && (
+              <div className={`mt-4 rounded-xl p-4 text-sm font-medium ${
+                status.startsWith('\u2705') ? 'bg-green-900/40 text-green-200' :
+                status.startsWith('\u274C') ? 'bg-red-900/40 text-red-200' :
                 'bg-sky-900/40 text-sky-200'
               }`}>
-                {localStatus}
+                {status}
               </div>
             )}
           </div>
 
-          <div className="rounded-2xl bg-[#1a1a1a] border border-green-500/10 p-6 text-sm text-slate-300 space-y-2">
-            <p className="font-semibold text-slate-100">How it works:</p>
-            <ul className="list-disc list-inside space-y-1">
-              <li>Upload a JSON file with your chore definitions</li>
-              <li>The file is validated and sent to Supabase</li>
-              <li>All users will see the updated chores on their next page load</li>
-              <li>Use this instead of manually editing SQL</li>
-            </ul>
+          {/* Danger Zone */}
+          <div className="bg-[#181818] border border-red-500/20 rounded-2xl p-6">
+            <h2 className="text-lg font-semibold text-red-400 mb-1">Danger Zone</h2>
+            <p className="text-sm text-slate-400 mb-4">
+              Permanently delete all local data from this browser. This cannot be undone.
+            </p>
+            <button
+              type="button"
+              onClick={handleClearLocalData}
+              className="rounded-full border border-red-400/60 bg-[#232323] px-5 py-2.5 text-sm font-semibold text-red-300 hover:bg-red-950/40 transition"
+            >
+              Clear All Local Data
+            </button>
           </div>
 
-          <div className="pt-6 border-t border-green-500/10 flex flex-wrap gap-4">
-            <a
-              href="/"
-              className="inline-block rounded-full border-2 border-green-500/20 px-8 py-3 text-lg font-semibold text-slate-300 hover:bg-[#1a1a1a] hover:border-green-400/40 transition"
-            >
-              &larr; Back to Chore Dashboard
-            </a>
-            <a
-              href="/#/stats"
-              className="inline-block rounded-full border-2 border-green-500/20 px-8 py-3 text-lg font-semibold text-slate-300 hover:bg-[#1a1a1a] hover:border-green-400/40 transition"
-            >
-              View Stats
-            </a>
-          </div>
+          {/* Status messages for local operations */}
+          {localStatus && (
+            <div className={`rounded-xl p-4 text-sm font-medium ${
+              localStatus.startsWith('\u2705') ? 'bg-green-900/40 text-green-200' :
+              localStatus.startsWith('\u274C') ? 'bg-red-900/40 text-red-200' :
+              'bg-sky-900/40 text-sky-200'
+            }`}>
+              {localStatus}
+            </div>
+          )}
         </div>
 
         <input

@@ -46,6 +46,7 @@ function ChoreApp() {
   const {
     chores,
     postponedOverrides,
+    dirtyRef,
     toggleCompleted,
     toggleMemberCompleted,
     postponeToDate,
@@ -54,7 +55,7 @@ function ChoreApp() {
   } = choreState;
 
   const { currentDate, setCurrentDate } = useMidnightRollover(autoPostponeUndone);
-  const { isReloading, handleReloadData } = useChoreSync(processRemoteData);
+  const { isReloading, handleReloadData } = useChoreSync(processRemoteData, dirtyRef);
 
   useKeepAlive();
 
@@ -163,6 +164,19 @@ function ChoreApp() {
     return filtered;
   }, [activeTab, chores, currentDate, selectedMember, postponedOverrides, todayKey]);
 
+  const overdueSubjects = useMemo(() => {
+    const subjects = new Map<string, string>();
+    for (const override of postponedOverrides) {
+      if (override.toDate === todayKey && override.fromDate < todayKey) {
+        const existing = subjects.get(override.subject);
+        if (!existing || override.fromDate < existing) {
+          subjects.set(override.subject, override.fromDate);
+        }
+      }
+    }
+    return subjects;
+  }, [postponedOverrides, todayKey]);
+
   const handleToggleCompleted = (subject: string) => {
     toggleCompleted(subject, currentDate);
   };
@@ -239,6 +253,12 @@ function ChoreApp() {
                 className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 transition"
               >
                 Stats
+              </a>
+              <a
+                href="/#/admin"
+                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 transition"
+              >
+                Settings
               </a>
               <button
                 type="button"
@@ -335,6 +355,14 @@ function ChoreApp() {
           </div>
             </header>
 
+            {activeTab === "Today" && overdueSubjects.size > 0 && (
+              <div className="mb-6 rounded-2xl bg-red-500/10 border border-red-500/30 px-6 py-3">
+                <p className="text-lg font-semibold text-red-400">
+                  ⚠ {overdueSubjects.size} overdue chore{overdueSubjects.size !== 1 ? 's' : ''} from previous days
+                </p>
+              </div>
+            )}
+
             <div className="space-y-6">
               {visibleChores.map((chore) => {
                 const key = subjectCount[chore.subject] > 1 && chore.id ? `${chore.subject}-${chore.id}` : chore.subject;
@@ -346,6 +374,7 @@ function ChoreApp() {
                     expandedChore={expandedChore}
                     activeTab={activeTab}
                     remainingWeekDates={remainingWeekDates}
+                    originalDueDate={activeTab === "Today" ? overdueSubjects.get(chore.subject) : undefined}
                     onToggleDescription={toggleDescription}
                     onToggleCompleted={handleToggleCompleted}
                     onOpenPostponeSelector={openPostponeSelector}

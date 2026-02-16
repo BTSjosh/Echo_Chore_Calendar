@@ -8,6 +8,8 @@ import {
   ACCESS_CODE,
   syncAccessCodeFromUrl,
   fetchRemoteSnapshot,
+  pushSnapshotToSupabase,
+  buildSnapshotRequest,
 } from '../utils/sync';
 
 import type { RemotePayload } from '../types';
@@ -18,10 +20,12 @@ export interface UseChoreSyncReturn {
 }
 
 export default function useChoreSync(
-  processRemoteData: (payload: RemotePayload, updated_at: string | null) => boolean
+  processRemoteData: (payload: RemotePayload, updated_at: string | null) => boolean,
+  dirtyRef: React.RefObject<boolean>
 ): UseChoreSyncReturn {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [isReloading, setIsReloading] = useState(false);
+  const lastPushRef = useRef(0);
 
   // Keep a ref so the polling closure always uses the latest processRemoteData
   const processRef = useRef(processRemoteData);
@@ -150,6 +154,53 @@ export default function useChoreSync(
       clearInterval(pollInterval);
     };
   }, []);
+
+  // Auto-push to Supabase when tab is hidden or page is unloading
+  useEffect(() => {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+
+    const PUSH_THROTTLE_MS = 5000;
+
+    const shouldPush = () => {
+      if (!dirtyRef.current) return false;
+      const now = Date.now();
+      if (now - lastPushRef.current < PUSH_THROTTLE_MS) return false;
+      return true;
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && shouldPush()) {
+        lastPushRef.current = Date.now();
+        dirtyRef.current = false;
+        pushSnapshotToSupabase();
+      }
+    };
+
+    const handleBeforeUnload = () => {
+      if (!shouldPush()) return;
+      lastPushRef.current = Date.now();
+      dirtyRef.current = false;
+
+      // Use fetch + keepalive to survive page teardown
+      const req = buildSnapshotRequest();
+      if (req) {
+        fetch(req.url, {
+          method: 'POST',
+          headers: req.headers,
+          body: req.body,
+          keepalive: true,
+        }).catch(() => {});
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [dirtyRef]);
 
   return { isReloading, handleReloadData };
 }

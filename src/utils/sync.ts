@@ -1,4 +1,5 @@
-import { parseStoredProgress, saveAccessCode } from './storage';
+import { parseStoredProgress, saveAccessCode, loadFromLocalStorage, loadChoreDefinitions, loadPostpones } from './storage';
+import { loadHistory } from './history';
 import type { PostponeEntry, ProgressRecord, RemotePayload, RemoteSnapshot, RawImportedChore } from '../types';
 
 export const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim();
@@ -91,6 +92,73 @@ export const extractRemoteChores = (payload: RemotePayload | RemotePayload[] | n
 
 export const extractRemoteProgress = (payload: RemotePayload | null | undefined): ProgressRecord | null =>
   parseStoredProgress(payload?.progress ?? payload);
+
+/**
+ * Push the current local state to Supabase as a snapshot.
+ * Returns true on success, false on failure or if Supabase is not configured.
+ * Designed for background/fire-and-forget use — never throws.
+ */
+export const pushSnapshotToSupabase = async (): Promise<boolean> => {
+  const baseUrl = normalizeSupabaseUrl(SUPABASE_URL);
+  if (!baseUrl || !SUPABASE_ANON_KEY) return false;
+
+  try {
+    const chores = loadChoreDefinitions() ?? [];
+    const progress = loadFromLocalStorage() ?? {};
+    const postponedOverrides = loadPostpones();
+    const history = loadHistory();
+
+    const url = `${baseUrl}/rest/v1/${SUPABASE_TABLE}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({
+        id: SUPABASE_REMOTE_ID,
+        payload: { chores, progress, postponedOverrides, history },
+        updated_at: new Date().toISOString(),
+      }),
+    });
+
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Build the Supabase upsert body for use with `fetch` + `keepalive`.
+ * Returns `null` if Supabase is not configured.
+ */
+export const buildSnapshotRequest = (): { url: string; body: string; headers: Record<string, string> } | null => {
+  const baseUrl = normalizeSupabaseUrl(SUPABASE_URL);
+  if (!baseUrl || !SUPABASE_ANON_KEY) return null;
+
+  const chores = loadChoreDefinitions() ?? [];
+  const progress = loadFromLocalStorage() ?? {};
+  const postponedOverrides = loadPostpones();
+  const history = loadHistory();
+
+  return {
+    url: `${baseUrl}/rest/v1/${SUPABASE_TABLE}`,
+    body: JSON.stringify({
+      id: SUPABASE_REMOTE_ID,
+      payload: { chores, progress, postponedOverrides, history },
+      updated_at: new Date().toISOString(),
+    }),
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'resolution=merge-duplicates',
+    },
+  };
+};
 
 export const mergePostpones = (current: PostponeEntry[] | null, imported: PostponeEntry[] | null): PostponeEntry[] => {
   const base = Array.isArray(current) ? current : [];
