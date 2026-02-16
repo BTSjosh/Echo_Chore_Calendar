@@ -1,125 +1,26 @@
 import { useState, useRef } from 'react';
-import initialChores from './data/initialChores.json';
+import {
+  STORAGE_KEY,
+  POSTPONE_KEY,
+  CHORE_DEFS_KEY,
+  parseStoredProgress,
+  saveToLocalStorage,
+  loadFromLocalStorage,
+  savePostpones,
+  loadPostpones,
+  saveChoreDefinitions,
+} from './utils/storage';
+import { getFormattedDate } from './utils/dates';
+import { HOUSEHOLD } from './utils/chores';
+import { normalizeSupabaseUrl } from './utils/sync';
+import type { Chore, ProgressRecord, PostponeEntry } from './types';
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim();
 const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 const SUPABASE_TABLE = (import.meta.env.VITE_SUPABASE_TABLE || 'chore_snapshots').trim();
 const SUPABASE_REMOTE_ID = (import.meta.env.VITE_CHORE_REMOTE_ID || 'current').trim();
-const STORAGE_KEY = 'echo-chore-schedule';
-const POSTPONE_KEY = 'echo-chore-postpones';
-const CHORE_DEFS_KEY = 'echo-chore-definitions';
 
-const HOUSEHOLD = Array.isArray(initialChores.household)
-  ? initialChores.household
-  : [];
-
-const PROGRESS_FIELDS = [
-  "completed",
-  "completedBy",
-  "lastCompleted",
-  "lastCompletedDate",
-  "completedToday",
-  "completedThrough",
-  "nextDue",
-  "nextDueDate",
-  "rotationIndex",
-  "rotationPosition",
-  "rotationCursor",
-  "rotationIndexPrev",
-  "rotationState",
-];
-
-const normalizeSupabaseUrl = (value) => value ? value.replace(/\/+$/, '') : '';
-
-const normalizeProgressEntry = (entry) => {
-  if (!entry || typeof entry !== "object") return null;
-  const normalized = {
-    completed: Boolean(entry.completed),
-    completedBy: Array.isArray(entry.completedBy) ? entry.completedBy : [],
-  };
-
-  PROGRESS_FIELDS.forEach((field) => {
-    if (field === "completed" || field === "completedBy") return;
-    if (entry[field] !== undefined) {
-      normalized[field] = entry[field];
-    }
-  });
-
-  return normalized;
-};
-
-const parseStoredProgress = (payload) => {
-  if (!payload) return null;
-
-  if (Array.isArray(payload)) {
-    return payload.reduce((acc, item) => {
-      if (!item?.subject) return acc;
-      const normalized = normalizeProgressEntry(item);
-      if (!normalized) return acc;
-      acc[item.subject] = normalized;
-      return acc;
-    }, {});
-  }
-
-  if (typeof payload === 'object') {
-    const progress = payload.progress ?? payload;
-    if (progress && typeof progress === 'object' && !Array.isArray(progress)) {
-      return Object.keys(progress).reduce((acc, key) => {
-        const entry = progress[key];
-        const normalized = normalizeProgressEntry(entry);
-        if (!normalized) return acc;
-        acc[key] = normalized;
-        return acc;
-      }, {});
-    }
-  }
-
-  return null;
-};
-
-const getFormattedDate = (date = new Date()) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const loadStoredProgress = () => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return null;
-    return parseStoredProgress(JSON.parse(stored));
-  } catch (error) {
-    console.error('Failed to read stored progress:', error);
-  }
-  return null;
-};
-
-const loadStoredPostpones = () => {
-  try {
-    const stored = localStorage.getItem(POSTPONE_KEY);
-    if (!stored) return [];
-    const parsed = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    console.error('Failed to read stored postpones:', error);
-  }
-  return [];
-};
-
-const saveStoredProgress = (progress) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, progress }));
-};
-
-const saveStoredPostpones = (overrides) => {
-  localStorage.setItem(POSTPONE_KEY, JSON.stringify(overrides));
-};
-
-const saveStoredDefinitions = (definitions) => {
-  localStorage.setItem(CHORE_DEFS_KEY, JSON.stringify(definitions));
-};
-
-const uploadSnapshotToSupabase = async (payload) => {
+const uploadSnapshotToSupabase = async (payload: Record<string, unknown>): Promise<Response> => {
   const baseUrl = normalizeSupabaseUrl(SUPABASE_URL);
   if (!baseUrl || !SUPABASE_ANON_KEY) {
     throw new Error('Supabase URL or API key not configured');
@@ -155,10 +56,10 @@ export default function AdminUpload() {
   const [uploading, setUploading] = useState(false);
   const [localStatus, setLocalStatus] = useState('');
   const [localBusy, setLocalBusy] = useState(false);
-  const fileInputRef = useRef(null);
-  const localFileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const localFileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = async (event) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -169,12 +70,10 @@ export default function AdminUpload() {
       const text = await file.text();
       const parsed = JSON.parse(text);
 
-      // Validate that the JSON has the expected shape
       if (!parsed.chores || !Array.isArray(parsed.chores)) {
         throw new Error('Invalid format: expected a "chores" array');
       }
 
-      // Build the snapshot payload
       const snapshot = {
         chores: parsed.chores,
         progress: parsed.progress || {},
@@ -184,10 +83,10 @@ export default function AdminUpload() {
       setStatus('Uploading to Supabase...');
       await uploadSnapshotToSupabase(snapshot);
 
-      setStatus('✅ Upload successful! Refresh the app to see changes.');
+      setStatus('\u2705 Upload successful! Refresh the app to see changes.');
     } catch (error) {
       console.error('Upload failed:', error);
-      setStatus(`❌ Upload failed: ${error.message}`);
+      setStatus(`\u274C Upload failed: ${(error as Error).message}`);
     } finally {
       setUploading(false);
       event.target.value = '';
@@ -195,8 +94,8 @@ export default function AdminUpload() {
   };
 
   const handleLocalBackup = () => {
-    const progress = loadStoredProgress() ?? {};
-    const postponedOverrides = loadStoredPostpones();
+    const progress = loadFromLocalStorage() ?? {};
+    const postponedOverrides = loadPostpones();
     const payload = JSON.stringify(
       {
         version: "2.0",
@@ -219,7 +118,7 @@ export default function AdminUpload() {
     URL.revokeObjectURL(url);
   };
 
-  const handleLocalRestoreFromFile = async (event) => {
+  const handleLocalRestoreFromFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -231,10 +130,10 @@ export default function AdminUpload() {
       const parsed = JSON.parse(text);
 
       const restoredProgress = parseStoredProgress(parsed?.progress ?? parsed);
-      const restoredPostpones = Array.isArray(parsed?.postponedOverrides)
+      const restoredPostpones: PostponeEntry[] = Array.isArray(parsed?.postponedOverrides)
         ? parsed.postponedOverrides
         : [];
-      const restoredDefinitions = Array.isArray(parsed?.chores)
+      const restoredDefinitions: Chore[] | null = Array.isArray(parsed?.chores)
         ? parsed.chores
         : null;
 
@@ -243,21 +142,21 @@ export default function AdminUpload() {
       }
 
       if (restoredDefinitions) {
-        saveStoredDefinitions(restoredDefinitions);
+        saveChoreDefinitions(restoredDefinitions);
       }
 
       if (restoredProgress) {
-        saveStoredProgress(restoredProgress);
+        saveToLocalStorage(restoredProgress);
       }
 
       if (Object.prototype.hasOwnProperty.call(parsed ?? {}, 'postponedOverrides')) {
-        saveStoredPostpones(restoredPostpones);
+        savePostpones(restoredPostpones);
       }
 
-      setLocalStatus('✅ Local restore saved. Refresh the app to apply changes.');
+      setLocalStatus('\u2705 Local restore saved. Refresh the app to apply changes.');
     } catch (error) {
       console.error('Local restore failed:', error);
-      setLocalStatus(`❌ Restore failed: ${error.message}`);
+      setLocalStatus(`\u274C Restore failed: ${(error as Error).message}`);
     } finally {
       setLocalBusy(false);
       event.target.value = '';
@@ -265,15 +164,15 @@ export default function AdminUpload() {
   };
 
   const handleClearLocalData = () => {
-    if (window.confirm('⚠️ This will delete local progress, history, and postpones for this browser.')) {
+    if (window.confirm('\u26A0\uFE0F This will delete local progress, history, and postpones for this browser.')) {
       try {
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(POSTPONE_KEY);
         localStorage.removeItem(CHORE_DEFS_KEY);
-        setLocalStatus('✅ Local data cleared. Refresh the app to reload seed chores.');
+        setLocalStatus('\u2705 Local data cleared. Refresh the app to reload seed chores.');
       } catch (error) {
         console.error('Failed to clear local data:', error);
-        setLocalStatus('❌ Failed to clear local data.');
+        setLocalStatus('\u274C Failed to clear local data.');
       }
     }
   };
@@ -305,8 +204,8 @@ export default function AdminUpload() {
 
           {status && (
             <div className={`rounded-2xl p-6 text-lg font-medium ${
-              status.startsWith('✅') ? 'bg-green-900/40 text-green-200' :
-              status.startsWith('❌') ? 'bg-red-900/40 text-red-200' :
+              status.startsWith('\u2705') ? 'bg-green-900/40 text-green-200' :
+              status.startsWith('\u274C') ? 'bg-red-900/40 text-red-200' :
               'bg-sky-900/40 text-sky-200'
             }`}>
               {status}
@@ -354,8 +253,8 @@ export default function AdminUpload() {
 
             {localStatus && (
               <div className={`mt-6 rounded-2xl p-5 text-sm font-medium ${
-                localStatus.startsWith('✅') ? 'bg-green-900/40 text-green-200' :
-                localStatus.startsWith('❌') ? 'bg-red-900/40 text-red-200' :
+                localStatus.startsWith('\u2705') ? 'bg-green-900/40 text-green-200' :
+                localStatus.startsWith('\u274C') ? 'bg-red-900/40 text-red-200' :
                 'bg-sky-900/40 text-sky-200'
               }`}>
                 {localStatus}
@@ -378,7 +277,7 @@ export default function AdminUpload() {
               href="/"
               className="inline-block rounded-full border-2 border-green-500/20 px-8 py-3 text-lg font-semibold text-slate-300 hover:bg-[#1a1a1a] hover:border-green-400/40 transition"
             >
-              ← Back to Chore Dashboard
+              &larr; Back to Chore Dashboard
             </a>
           </div>
         </div>
