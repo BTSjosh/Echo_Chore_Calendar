@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import AdminUpload from './AdminUpload'
 import SummaryDashboard from './SummaryDashboard'
+import ChoreEditor from './editor/ChoreEditor'
 import './App.css'
 
 import {
@@ -451,6 +452,7 @@ function App() {
       <Route path="/" element={<ChoreApp />} />
       <Route path="/admin" element={<AdminUpload />} />
       <Route path="/stats" element={<SummaryDashboard />} />
+      <Route path="/editor" element={<ChoreEditor />} />
     </Routes>
   );
 }
