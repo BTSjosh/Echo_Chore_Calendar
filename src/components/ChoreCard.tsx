@@ -48,17 +48,8 @@ export default function ChoreCard({
 
   return (
     <article
-      onClick={() => onToggleDescription(chore.subject)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onToggleDescription(chore.subject);
-        }
-      }}
       className={
-        "rounded-3xl bg-[#353E43] p-4 shadow-xl shadow-black/30 border transition hover:shadow-2xl hover:shadow-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400 " +
+        "rounded-3xl bg-[#353E43] p-4 shadow-xl shadow-black/30 border transition hover:shadow-2xl hover:shadow-black/40 " +
         (isOverdue
           ? "border-red-500/40 hover:border-red-400/60 "
           : "border-green-500/20 hover:border-green-400/40 ") +
@@ -66,7 +57,19 @@ export default function ChoreCard({
       }
     >
       <div className="flex flex-wrap items-start justify-between gap-6">
-        <div className="min-w-[220px] flex-1">
+        {/* Clickable text area — only this triggers expand/collapse */}
+        <div
+          className="min-w-[220px] flex-1 cursor-pointer"
+          role="button"
+          tabIndex={0}
+          onClick={() => onToggleDescription(chore.subject)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onToggleDescription(chore.subject);
+            }
+          }}
+        >
           <h2 className="text-2xl lg:text-3xl font-semibold text-slate-100 scale-x-125 origin-left">
             {chore.subject}
             {isOverdue && (
@@ -105,10 +108,11 @@ export default function ChoreCard({
           </p>
         </div>
 
+        {/* Buttons area — no parent click handler, so taps always hit the button */}
         <div className="flex flex-wrap items-center gap-6 self-center">
           {isOverdue ? (
             showConfirm ? (
-              <div className="flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
+              <div className="flex flex-col items-center gap-3">
                 <p className="text-base font-semibold text-amber-300 text-center">Are you sure you did this?<br />Don't lie!</p>
                 <div className="flex items-center gap-3">
                   <button
@@ -133,18 +137,14 @@ export default function ChoreCard({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setShowConfirm(true);
-                  }}
+                  onClick={() => setShowConfirm(true)}
                   className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
                 >
                   Mark Done
                 </button>
                 <button
                   type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
+                  onClick={() => {
                     if (originalDueDate) onAbandonOverdue(chore.subject, originalDueDate);
                   }}
                   className="rounded-full border border-red-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-red-300 hover:bg-[#4a555c] hover:border-red-400 min-w-[11rem] text-center transition-all duration-150"
@@ -158,10 +158,7 @@ export default function ChoreCard({
               {activeTab === "Today" && remainingWeekDates.length > 0 && (
                 <button
                   type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onOpenPostponeSelector(chore.subject);
-                  }}
+                  onClick={() => onOpenPostponeSelector(chore.subject)}
                   className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
                   style={{ marginRight: '0.5rem' }}
                 >
@@ -171,10 +168,7 @@ export default function ChoreCard({
               {assignedList.length > 1 ? (
                 <button
                   type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onOpenAssigneePicker(chore.subject);
-                  }}
+                  onClick={() => onOpenAssigneePicker(chore.subject)}
                   className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
                 >
                   Mark Done
@@ -182,10 +176,7 @@ export default function ChoreCard({
               ) : (
                 <button
                   type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onToggleCompleted(chore.subject);
-                  }}
+                  onClick={() => onToggleCompleted(chore.subject)}
                   className={
                     "rounded-full border px-8 py-5 text-base font-semibold transition min-w-[11rem] text-center " +
                     (chore.completed

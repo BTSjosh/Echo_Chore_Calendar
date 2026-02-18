@@ -1,9 +1,5 @@
 import { useState, useRef } from 'react';
 import {
-  STORAGE_KEY,
-  POSTPONE_KEY,
-  CHORE_DEFS_KEY,
-  HISTORY_KEY,
   parseStoredProgress,
   saveToLocalStorage,
   loadFromLocalStorage,
@@ -60,6 +56,7 @@ export default function AdminUpload() {
   const [uploading, setUploading] = useState(false);
   const [localStatus, setLocalStatus] = useState('');
   const [localBusy, setLocalBusy] = useState(false);
+  const [historyBusy, setHistoryBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const localFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -195,8 +192,12 @@ export default function AdminUpload() {
       setLocalStatus('No history events to export.');
       return;
     }
-    const csv = exportHistoryAsCsv(history);
-    triggerDownload(csv, `chore-history-${getFormattedDate()}.csv`, 'text/csv');
+    setHistoryBusy(true);
+    setTimeout(() => {
+      const csv = exportHistoryAsCsv(history);
+      triggerDownload(csv, `chore-history-${getFormattedDate()}.csv`, 'text/csv');
+      setHistoryBusy(false);
+    }, 50);
   };
 
   const handleExportHistoryJson = () => {
@@ -205,23 +206,12 @@ export default function AdminUpload() {
       setLocalStatus('No history events to export.');
       return;
     }
-    const json = JSON.stringify(history, null, 2);
-    triggerDownload(json, `chore-history-${getFormattedDate()}.json`, 'application/json');
-  };
-
-  const handleClearLocalData = () => {
-    if (window.confirm('\u26A0\uFE0F This will delete local progress, history, and postpones for this browser.')) {
-      try {
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(POSTPONE_KEY);
-        localStorage.removeItem(CHORE_DEFS_KEY);
-        localStorage.removeItem(HISTORY_KEY);
-        setLocalStatus('\u2705 Local data cleared. Refresh the app to reload seed chores.');
-      } catch (error) {
-        console.error('Failed to clear local data:', error);
-        setLocalStatus('\u274C Failed to clear local data.');
-      }
-    }
+    setHistoryBusy(true);
+    setTimeout(() => {
+      const json = JSON.stringify(history, null, 2);
+      triggerDownload(json, `chore-history-${getFormattedDate()}.json`, 'application/json');
+      setHistoryBusy(false);
+    }, 50);
   };
 
   const supabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
@@ -295,16 +285,18 @@ export default function AdminUpload() {
               <button
                 type="button"
                 onClick={handleExportHistoryCsv}
-                className="rounded-full border border-slate-700 bg-[#232323] px-5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 transition"
+                disabled={historyBusy}
+                className="rounded-full border border-slate-700 bg-[#232323] px-5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                Export as CSV
+                {historyBusy ? 'Exporting…' : 'Export as CSV'}
               </button>
               <button
                 type="button"
                 onClick={handleExportHistoryJson}
-                className="rounded-full border border-slate-700 bg-[#232323] px-5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 transition"
+                disabled={historyBusy}
+                className="rounded-full border border-slate-700 bg-[#232323] px-5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                Export as JSON
+                {historyBusy ? 'Exporting…' : 'Export as JSON'}
               </button>
             </div>
           </div>
@@ -342,21 +334,6 @@ export default function AdminUpload() {
                 {status}
               </div>
             )}
-          </div>
-
-          {/* Danger Zone */}
-          <div className="bg-[#181818] border border-red-500/20 rounded-2xl p-6">
-            <h2 className="text-lg font-semibold text-red-400 mb-1">Danger Zone</h2>
-            <p className="text-sm text-slate-400 mb-4">
-              Permanently delete all local data from this browser. This cannot be undone.
-            </p>
-            <button
-              type="button"
-              onClick={handleClearLocalData}
-              className="rounded-full border border-red-400/60 bg-[#232323] px-5 py-2.5 text-sm font-semibold text-red-300 hover:bg-red-950/40 transition"
-            >
-              Clear All Local Data
-            </button>
           </div>
 
           {/* Status messages for local operations */}
