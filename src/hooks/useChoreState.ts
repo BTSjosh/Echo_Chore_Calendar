@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import {
   saveToLocalStorage,
@@ -65,15 +65,9 @@ export default function useChoreState(): UseChoreStateReturn {
     () => loadPostpones()
   );
 
-  // Persist progress when chores change
-  useEffect(() => {
-    saveToLocalStorage(extractProgress(chores));
-  }, [chores]);
-
-  // Persist postpones when they change
-  useEffect(() => {
-    savePostpones(postponedOverrides);
-  }, [postponedOverrides]);
+  // Note: localStorage saves are done synchronously inside each setState updater
+  // so that pushSnapshotToSupabase (called on visibilitychange/beforeunload)
+  // always reads up-to-date data from localStorage, not stale pre-render data.
 
   const advanceRotation = (chore: Chore, currentDate: Date): Chore => {
     if (chore.assignmentType !== 'rotating') return chore;
@@ -98,8 +92,8 @@ export default function useChoreState(): UseChoreStateReturn {
 
   const toggleCompleted = (subject: string, currentDate: Date) => {
     dirtyRef.current = true;
-    setChores((prev) =>
-      prev.map((chore) => {
+    setChores((prev) => {
+      const next = prev.map((chore) => {
         if (chore.subject !== subject) return chore;
         if (chore.completed) {
           appendHistoryEvent({
@@ -117,15 +111,17 @@ export default function useChoreState(): UseChoreStateReturn {
           dueDate: getDateKey(currentDate),
         });
         return advanceRotation({ ...chore, completed: true, completedBy: [] }, currentDate);
-      })
-    );
+      });
+      saveToLocalStorage(extractProgress(next));
+      return next;
+    });
   };
 
   const toggleMemberCompleted = (subject: string, member: string, currentDate: Date): boolean => {
     dirtyRef.current = true;
     let shouldAutoClose = false;
-    setChores((prev) =>
-      prev.map((chore) => {
+    setChores((prev) => {
+      const next = prev.map((chore) => {
         if (chore.subject !== subject) return chore;
         const assigned = getAssignedMembers(chore, currentDate);
         const completedBy = getCompletedBy(chore, assigned);
@@ -148,8 +144,10 @@ export default function useChoreState(): UseChoreStateReturn {
             : Boolean(chore.completed);
         const updated: Chore = { ...chore, completedBy: nextCompletedBy, completed };
         return completed ? advanceRotation(updated, currentDate) : updated;
-      })
-    );
+      });
+      saveToLocalStorage(extractProgress(next));
+      return next;
+    });
     return shouldAutoClose;
   };
 
@@ -168,6 +166,7 @@ export default function useChoreState(): UseChoreStateReturn {
           !(override.subject === subject && override.fromDate === fromDateKey)
       );
       next.push({ subject, fromDate: fromDateKey, toDate });
+      savePostpones(next);
       return next;
     });
   };
@@ -218,12 +217,14 @@ export default function useChoreState(): UseChoreStateReturn {
   };
 
   const removeOverride = (subject: string, fromDate: string) => {
-    setPostponedOverrides((prev) =>
-      prev.filter(
+    setPostponedOverrides((prev) => {
+      const next = prev.filter(
         (override) =>
           !(override.subject === subject && override.fromDate === fromDate)
-      )
-    );
+      );
+      savePostpones(next);
+      return next;
+    });
   };
 
   const completeLateOverdue = (subject: string, fromDate: string) => {
@@ -286,6 +287,7 @@ export default function useChoreState(): UseChoreStateReturn {
               });
             }
           });
+          savePostpones(newOverrides);
           return newOverrides;
         });
       }
