@@ -7,6 +7,8 @@ import {
   loadChoreDefinitions,
   savePostpones,
   loadPostpones,
+  loadPushIntent,
+  clearPushIntent,
 } from '../utils/storage';
 
 import {
@@ -184,17 +186,39 @@ export default function useChoreState(): UseChoreStateReturn {
     if (!payload) return false;
     dirtyRef.current = true;
 
-    const remoteDefinitions = extractRemoteChores(payload);
-    const remoteProgress = extractRemoteProgress(payload);
-    const baseChores = (remoteDefinitions ?? SEED_CHORES) as RawImportedChore[];
-    const storedProgress = remoteProgress ?? loadFromLocalStorage();
-    const nextChores = applyProgress(buildInitialChores(baseChores), storedProgress);
+    // If our last push intent is more recent than the remote snapshot's timestamp,
+    // the remote is stale (our keepalive push hasn't landed yet or Supabase hasn't
+    // processed it). Preserve local progress/postpones and only apply definitions.
+    const pushIntent = loadPushIntent();
+    const remoteTime = updated_at ? new Date(updated_at).getTime() : 0;
+    const localIsNewer = pushIntent > 0 && pushIntent > remoteTime;
 
-    setChores(nextChores);
+    const remoteDefinitions = extractRemoteChores(payload);
+    const baseChores = (remoteDefinitions ?? SEED_CHORES) as RawImportedChore[];
 
     if (remoteDefinitions) {
       saveChoreDefinitions(remoteDefinitions as unknown as Chore[]);
     }
+
+    // Always merge history — additive only, no conflicts possible
+    if (Array.isArray(payload?.history)) {
+      const merged = mergeHistory(loadHistory(), payload.history);
+      saveHistory(merged);
+    }
+
+    if (localIsNewer) {
+      // Rebuild chores from local progress so definitions stay current,
+      // but don't overwrite locally-resolved completions or postpones.
+      const localProgress = loadFromLocalStorage();
+      setChores(applyProgress(buildInitialChores(baseChores), localProgress));
+      return true;
+    }
+
+    // Remote is newer — clear push intent and apply remote data fully
+    clearPushIntent();
+    const remoteProgress = extractRemoteProgress(payload);
+    const storedProgress = remoteProgress ?? loadFromLocalStorage();
+    setChores(applyProgress(buildInitialChores(baseChores), storedProgress));
 
     if (remoteProgress) {
       saveToLocalStorage(remoteProgress);
@@ -207,12 +231,6 @@ export default function useChoreState(): UseChoreStateReturn {
       mergeRemotePostpones(remotePostpones);
     }
 
-    if (Array.isArray(payload?.history)) {
-      const merged = mergeHistory(loadHistory(), payload.history);
-      saveHistory(merged);
-    }
-
-    void updated_at; // consumed by useChoreSync
     return true;
   };
 

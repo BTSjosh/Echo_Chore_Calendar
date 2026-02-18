@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { loadAccessCode } from '../utils/storage';
+import { loadAccessCode, savePushIntent } from '../utils/storage';
 
 import {
   SUPABASE_URL,
@@ -185,6 +185,7 @@ export default function useChoreSync(
       if (document.visibilityState === 'hidden' && shouldPush()) {
         lastPushRef.current = Date.now();
         dirtyRef.current = false;
+        savePushIntent();
         pushSnapshotToSupabase();
       }
     };
@@ -193,6 +194,7 @@ export default function useChoreSync(
       if (!shouldPush()) return;
       lastPushRef.current = Date.now();
       dirtyRef.current = false;
+      savePushIntent();
 
       // Use fetch + keepalive to survive page teardown
       const req = buildSnapshotRequest();

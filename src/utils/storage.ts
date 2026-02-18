@@ -5,6 +5,24 @@ export const POSTPONE_KEY = 'echo-chore-postpones';
 export const CHORE_DEFS_KEY = 'echo-chore-definitions';
 export const HISTORY_KEY = 'echo-chore-history';
 export const ACCESS_CODE_KEY = 'echo-chore-access-code';
+export const PUSH_INTENT_KEY = 'echo-chore-push-intent';
+
+/** Record the moment a Supabase push was initiated so processRemoteData can
+ *  detect when the remote snapshot is stale relative to local state. */
+export const savePushIntent = (): void => {
+  try { localStorage.setItem(PUSH_INTENT_KEY, Date.now().toString()); } catch (e) { void e; }
+};
+
+export const loadPushIntent = (): number => {
+  try {
+    const val = localStorage.getItem(PUSH_INTENT_KEY);
+    return val ? parseInt(val, 10) : 0;
+  } catch (e) { void e; return 0; }
+};
+
+export const clearPushIntent = (): void => {
+  try { localStorage.removeItem(PUSH_INTENT_KEY); } catch (e) { void e; }
+};
 
 export const PROGRESS_FIELDS: ProgressFieldKey[] = [
   "completed",
