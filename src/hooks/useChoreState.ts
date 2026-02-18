@@ -24,7 +24,7 @@ import {
   applyProgress,
 } from '../utils/chores';
 
-import { getDateKey, toDateOnly } from '../utils/dates';
+import { getDateKey, toDateOnly, parseDateKey } from '../utils/dates';
 
 import { mergePostpones, extractRemoteChores, extractRemoteProgress } from '../utils/sync';
 
@@ -253,6 +253,16 @@ export default function useChoreState(): UseChoreStateReturn {
       members: [],
       dueDate: fromDate,
     });
+    // Advance rotation so the next person is up, same as a normal completion.
+    setChores((prev) => {
+      const next = prev.map((chore) => {
+        if (chore.subject !== subject) return chore;
+        const overdueDate = parseDateKey(fromDate) ?? toDateOnly(new Date());
+        return advanceRotation({ ...chore, completed: true, completedBy: [] }, overdueDate);
+      });
+      saveToLocalStorage(extractProgress(next));
+      return next;
+    });
     removeOverride(subject, fromDate);
   };
 
@@ -263,6 +273,21 @@ export default function useChoreState(): UseChoreStateReturn {
       choreSubject: subject,
       members: [],
       dueDate: fromDate,
+    });
+    // Advance rotation so the next person is up, but don't mark the chore completed.
+    setChores((prev) => {
+      const next = prev.map((chore) => {
+        if (chore.subject !== subject) return chore;
+        if (chore.assignmentType !== 'rotating') return chore;
+        const members = Array.isArray(chore.rotation?.members) ? chore.rotation!.members : [];
+        if (!members.length) return chore;
+        const overdueDate = parseDateKey(fromDate) ?? toDateOnly(new Date());
+        const currentIndex = getRotationIndex(chore, overdueDate);
+        const nextIndex = (currentIndex + 1) % members.length;
+        return { ...chore, rotationIndex: nextIndex, rotationIndexPrev: currentIndex };
+      });
+      saveToLocalStorage(extractProgress(next));
+      return next;
     });
     removeOverride(subject, fromDate);
   };
