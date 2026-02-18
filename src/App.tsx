@@ -316,6 +316,7 @@ function ChoreApp() {
           <div className="flex flex-wrap items-center gap-4">
             {TABS.map((tab) => {
               const isActive = activeTab === tab;
+              // Tab selector button: auto-sizes to content, styled for active/inactive state
               return (
                 <button
                   key={tab}
