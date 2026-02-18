@@ -135,21 +135,33 @@ function ChoreApp() {
           ? overdueOverrides.reduce((earliest, o) => o.fromDate < earliest.fromDate ? o : earliest)
           : null;
 
+        const todayAssignees = getAssignedMembers(chore, today);
+        let overdueIsSamePerson = false;
+
         if (earliestOverdue) {
           const originalDate = parseDateKey(earliestOverdue.fromDate);
           const overdueAssignees = originalDate
             ? getAssignedMembers(chore, originalDate)
-            : getAssignedMembers(chore, today);
+            : todayAssignees;
           filtered.push({
             ...chore,
             _instanceType: 'overdue',
             _originalDueDate: earliestOverdue.fromDate,
             _overdueAssignees: overdueAssignees,
           });
+          // If overdue card is for the same person as today's assignment,
+          // suppress the normal card — it's a duplicate (e.g. fixed daily chore).
+          // If it's a different person (rotating chore), show both cards.
+          overdueIsSamePerson =
+            overdueAssignees.length === todayAssignees.length &&
+            overdueAssignees.every((m) => todayAssignees.includes(m));
         }
 
-        // Check if chore is normally due today AND not postponed FROM today
-        const normallyDueToday = isDueOnDate(chore, today) && !isPostponedFrom(chore.subject, todayKey);
+        // Show the normal card unless: postponed away from today, or overdue card
+        // already covers the same person's instance for today.
+        const normallyDueToday = isDueOnDate(chore, today)
+          && !isPostponedFrom(chore.subject, todayKey)
+          && !overdueIsSamePerson;
         if (normallyDueToday) {
           filtered.push({
             ...chore,
