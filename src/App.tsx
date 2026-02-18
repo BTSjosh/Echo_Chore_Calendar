@@ -11,7 +11,7 @@ import {
   parseDateKey,
   getStartOfWeek,
   getEndOfWeek,
-  getRemainingWeekDates,
+  getNext4Days,
   getStartOfMonth,
   getEndOfMonth,
 } from './utils/dates'
@@ -38,7 +38,7 @@ import type { Chore, DisplayChore, TabName } from './types'
 function ChoreApp() {
   const [activeTab, setActiveTab] = useState<TabName>("Today");
   const [selectedMember, setSelectedMember] = useState("All");
-  const [postponeTarget, setPostponeTarget] = useState<string | null>(null);
+  const [postponeTarget, setPostponeTarget] = useState<{ subject: string; fromDate: string } | null>(null);
   const [assigneePicker, setAssigneePicker] = useState<string | null>(null);
   const [expandedChore, setExpandedChore] = useState<string | null>(null);
   const assigneeCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,8 +63,8 @@ function ChoreApp() {
   useKeepAlive();
 
   const todayKey = useMemo(() => getDateKey(currentDate), [currentDate]);
-  const remainingWeekDates = useMemo(
-    () => getRemainingWeekDates(currentDate),
+  const postponeDates = useMemo(
+    () => getNext4Days(currentDate),
     [currentDate]
   );
 
@@ -229,8 +229,8 @@ function ChoreApp() {
     setExpandedChore((prev) => (prev === subject ? null : subject));
   };
 
-  const openPostponeSelector = (subject: string) => {
-    setPostponeTarget(subject);
+  const openPostponeSelector = (subject: string, fromDate?: string) => {
+    setPostponeTarget({ subject, fromDate: fromDate ?? todayKey });
   };
 
   const closePostponeSelector = () => {
@@ -254,7 +254,7 @@ function ChoreApp() {
   };
 
   const handlePostponeToDate = (subject: string, date: Date) => {
-    postponeToDate(subject, todayKey, getDateKey(date));
+    postponeToDate(subject, postponeTarget?.fromDate ?? todayKey, getDateKey(date));
     setExpandedChore(null);
     setCurrentDate(new Date());
     setPostponeTarget(null);
@@ -401,7 +401,6 @@ function ChoreApp() {
                     currentDate={currentDate}
                     expandedChore={expandedChore}
                     activeTab={activeTab}
-                    remainingWeekDates={remainingWeekDates}
                     originalDueDate={chore._originalDueDate}
                     overdueAssignees={chore._overdueAssignees}
                     instanceType={chore._instanceType}
@@ -429,8 +428,8 @@ function ChoreApp() {
 
       {postponeTarget && (
         <PostponeSelectorModal
-          remainingWeekDates={remainingWeekDates}
-          postponeTarget={postponeTarget}
+          postponeDates={postponeDates}
+          postponeTarget={postponeTarget.subject}
           onPostponeToDate={handlePostponeToDate}
           onClose={closePostponeSelector}
         />

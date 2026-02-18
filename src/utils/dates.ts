@@ -35,18 +35,15 @@ export const getEndOfWeek = (date: Date): Date => {
   return end;
 };
 
-export const getRemainingWeekDates = (date: Date): Date[] => {
+export const getNext4Days = (date: Date): Date[] => {
   const today = toDateOnly(date);
-  const end = toDateOnly(getEndOfWeek(today));
   const dates: Date[] = [];
   const cursor = new Date(today);
   cursor.setDate(cursor.getDate() + 1);
-
-  while (cursor <= end) {
+  for (let i = 0; i < 4; i++) {
     dates.push(new Date(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }
-
   return dates;
 };
 

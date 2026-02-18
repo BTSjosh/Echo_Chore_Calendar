@@ -6,7 +6,7 @@ import {
   parseDateKey,
   getStartOfWeek,
   getEndOfWeek,
-  getRemainingWeekDates,
+  getNext4Days,
   getStartOfMonth,
   getEndOfMonth,
   getDayIndex,
@@ -117,25 +117,29 @@ describe('getStartOfWeek / getEndOfWeek', () => {
   });
 });
 
-describe('getRemainingWeekDates', () => {
-  it('excludes today, includes rest of week', () => {
+describe('getNext4Days', () => {
+  it('always returns exactly 4 days starting from tomorrow', () => {
     const wed = new Date(2025, 5, 11);
-    const remaining = getRemainingWeekDates(wed);
-    expect(remaining.length).toBe(4);
-    expect(remaining[0].getDate()).toBe(12);
-    expect(remaining[3].getDate()).toBe(15);
+    const days = getNext4Days(wed);
+    expect(days.length).toBe(4);
+    expect(days[0].getDate()).toBe(12);
+    expect(days[3].getDate()).toBe(15);
   });
 
-  it('returns empty array on Sunday (end of week)', () => {
+  it('returns 4 days even on Sunday (end of week)', () => {
     const sun = new Date(2025, 5, 15);
-    const remaining = getRemainingWeekDates(sun);
-    expect(remaining.length).toBe(0);
+    const days = getNext4Days(sun);
+    expect(days.length).toBe(4);
+    expect(days[0].getDate()).toBe(16);
+    expect(days[3].getDate()).toBe(19);
   });
 
-  it('returns 6 days on Monday', () => {
+  it('returns 4 days on Monday', () => {
     const mon = new Date(2025, 5, 9);
-    const remaining = getRemainingWeekDates(mon);
-    expect(remaining.length).toBe(6);
+    const days = getNext4Days(mon);
+    expect(days.length).toBe(4);
+    expect(days[0].getDate()).toBe(10);
+    expect(days[3].getDate()).toBe(13);
   });
 });
 

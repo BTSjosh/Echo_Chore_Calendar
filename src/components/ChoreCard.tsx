@@ -12,7 +12,6 @@ interface ChoreCardProps {
   currentDate: Date;
   expandedChore: string | null;
   activeTab: TabName;
-  remainingWeekDates: Date[];
   originalDueDate?: string;
   overdueAssignees?: string[];
   instanceType?: 'overdue' | 'normal';
@@ -20,7 +19,7 @@ interface ChoreCardProps {
   onToggleCompleted: (subject: string) => void;
   onCompleteLateOverdue: (subject: string, fromDate: string) => void;
   onAbandonOverdue: (subject: string, fromDate: string) => void;
-  onOpenPostponeSelector: (subject: string) => void;
+  onOpenPostponeSelector: (subject: string, fromDate?: string) => void;
   onOpenAssigneePicker: (subject: string) => void;
 }
 
@@ -29,7 +28,6 @@ export default function ChoreCard({
   currentDate,
   expandedChore,
   activeTab,
-  remainingWeekDates,
   originalDueDate,
   overdueAssignees,
   instanceType,
@@ -134,13 +132,20 @@ export default function ChoreCard({
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setShowConfirm(true)}
                   className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
                 >
                   Mark Done
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenPostponeSelector(chore.subject, originalDueDate)}
+                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
+                >
+                  Postpone
                 </button>
                 <button
                   type="button"
@@ -155,7 +160,7 @@ export default function ChoreCard({
             )
           ) : (
             <>
-              {activeTab === "Today" && remainingWeekDates.length > 0 && (
+              {activeTab === "Today" && (
                 <button
                   type="button"
                   onClick={() => onOpenPostponeSelector(chore.subject)}

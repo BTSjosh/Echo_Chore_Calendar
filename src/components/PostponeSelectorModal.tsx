@@ -1,12 +1,12 @@
 interface PostponeSelectorModalProps {
-  remainingWeekDates: Date[];
+  postponeDates: Date[];
   postponeTarget: string;
   onPostponeToDate: (subject: string, date: Date) => void;
   onClose: () => void;
 }
 
 export default function PostponeSelectorModal({
-  remainingWeekDates,
+  postponeDates,
   postponeTarget,
   onPostponeToDate,
   onClose,
@@ -33,7 +33,7 @@ export default function PostponeSelectorModal({
         </div>
 
         <div className="mt-8 flex flex-col gap-4">
-          {remainingWeekDates.map((date) => (
+          {postponeDates.map((date) => (
             <button
               key={date.toISOString()}
               type="button"
