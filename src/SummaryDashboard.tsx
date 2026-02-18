@@ -234,7 +234,7 @@ export default function SummaryDashboard() {
           <div className="flex items-center justify-between gap-4 mb-4">
             <h1 className="text-4xl font-semibold">Stats</h1>
             <a
-              href="/#/"
+              href="#/"
               className="rounded-full border-2 border-green-500/20 px-6 py-2 text-sm font-semibold text-slate-300 hover:bg-[#1a1a1a] hover:border-green-400/40 transition"
             >
               &larr; Back
@@ -276,13 +276,13 @@ export default function SummaryDashboard() {
         {/* Footer nav */}
         <div className="pt-8 mt-8 border-t border-green-500/10 flex flex-wrap gap-4">
           <a
-            href="/#/"
+            href="#/"
             className="inline-block rounded-full border-2 border-green-500/20 px-8 py-3 text-lg font-semibold text-slate-300 hover:bg-[#1a1a1a] hover:border-green-400/40 transition"
           >
             &larr; Chore Dashboard
           </a>
           <a
-            href="/#/admin"
+            href="#/admin"
             className="inline-block rounded-full border-2 border-green-500/20 px-8 py-3 text-lg font-semibold text-slate-300 hover:bg-[#1a1a1a] hover:border-green-400/40 transition"
           >
             Admin

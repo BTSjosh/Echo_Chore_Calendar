@@ -279,13 +279,13 @@ function ChoreApp() {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <a
-                href="/#/stats"
+                href="#/stats"
                 className="flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-6 py-2.5 text-lg font-semibold min-w-[9rem] text-slate-100 hover:bg-slate-800 hover:border-slate-600 shadow transition"
               >
                 Stats
               </a>
               <a
-                href="/#/admin"
+                href="#/admin"
                 className="flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-6 py-2.5 text-lg font-semibold min-w-[9rem] text-slate-100 hover:bg-slate-800 hover:border-slate-600 shadow transition"
               >
                 Settings

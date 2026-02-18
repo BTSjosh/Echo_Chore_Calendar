@@ -37,19 +37,19 @@ export default function ChoreEditor() {
             <h1 className="text-4xl font-semibold">Chore Editor</h1>
             <div className="flex items-center gap-2">
               <a
-                href="/#/stats"
+                href="#/stats"
                 className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 transition"
               >
                 Stats
               </a>
               <a
-                href="/#/admin"
+                href="#/admin"
                 className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 transition"
               >
                 Settings
               </a>
               <a
-                href="/#/"
+                href="#/"
                 className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 transition"
               >
                 &larr; Back
