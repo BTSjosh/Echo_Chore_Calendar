@@ -18,6 +18,9 @@ export interface PersonCompletionStat {
 export interface ChoreCompletionStat {
   choreSubject: string;
   completed: number;
+  late: number;
+  abandoned: number;
+  postponed: number;
   total: number;
   rate: number;
 }
@@ -48,6 +51,25 @@ export interface MissedPatternStat {
   windowLabel: string;
 }
 
+export interface ExecutiveSummary {
+  totalCompleted: number;   // completed + completed_late
+  totalOnTime: number;      // action === 'completed'
+  totalLate: number;        // action === 'completed_late'
+  totalAbandoned: number;   // action === 'abandoned'
+  totalPostponed: number;   // 'postponed' + 'auto_postponed'
+  overallRate: number;      // totalCompleted / (totalCompleted + totalAbandoned)
+  onTimePct: number;        // totalOnTime / totalCompleted
+}
+
+export interface WeeklyBucket {
+  weekLabel: string;  // "Jan 12" — Monday of that week
+  weekStart: string;  // ISO date YYYY-MM-DD
+  completed: number;  // on-time
+  late: number;
+  abandoned: number;
+  postponed: number;
+}
+
 export interface AnalyticsResult {
   personCompletion: PersonCompletionStat[];
   choreCompletion: ChoreCompletionStat[];
@@ -57,6 +79,8 @@ export interface AnalyticsResult {
   missedPatterns: MissedPatternStat[];
   totalEvents: number;
   rangeLabel: string;
+  executiveSummary: ExecutiveSummary;
+  weeklyTrend: WeeklyBucket[];  // always 8 weeks, computed from allEvents
 }
 
 export const buildDateRange = (period: Period, referenceDate: Date): DateRange | null => {
@@ -109,24 +133,47 @@ export const computePersonCompletion = (events: HistoryEvent[], household: strin
 };
 
 export const computeChoreCompletion = (events: HistoryEvent[]): ChoreCompletionStat[] => {
-  const completed = new Map<string, number>();
-  const uncompleted = new Map<string, number>();
+  const completedMap = new Map<string, number>();
+  const lateMap = new Map<string, number>();
+  const abandonedMap = new Map<string, number>();
+  const postponedMap = new Map<string, number>();
 
   for (const e of events) {
     if (e.action === 'completed') {
-      completed.set(e.choreSubject, (completed.get(e.choreSubject) ?? 0) + 1);
-    } else if (e.action === 'uncompleted') {
-      uncompleted.set(e.choreSubject, (uncompleted.get(e.choreSubject) ?? 0) + 1);
+      completedMap.set(e.choreSubject, (completedMap.get(e.choreSubject) ?? 0) + 1);
+    } else if (e.action === 'completed_late') {
+      lateMap.set(e.choreSubject, (lateMap.get(e.choreSubject) ?? 0) + 1);
+    } else if (e.action === 'abandoned') {
+      abandonedMap.set(e.choreSubject, (abandonedMap.get(e.choreSubject) ?? 0) + 1);
+    } else if (e.action === 'postponed' || e.action === 'auto_postponed') {
+      postponedMap.set(e.choreSubject, (postponedMap.get(e.choreSubject) ?? 0) + 1);
     }
   }
 
-  const subjects = new Set([...completed.keys(), ...uncompleted.keys()]);
+  const subjects = new Set([
+    ...completedMap.keys(),
+    ...lateMap.keys(),
+    ...abandonedMap.keys(),
+    ...postponedMap.keys(),
+  ]);
+
   return [...subjects]
     .map((choreSubject) => {
-      const c = completed.get(choreSubject) ?? 0;
-      const u = uncompleted.get(choreSubject) ?? 0;
-      const total = c + u;
-      return { choreSubject, completed: c, total, rate: total > 0 ? c / total : 0 };
+      const c = completedMap.get(choreSubject) ?? 0;
+      const l = lateMap.get(choreSubject) ?? 0;
+      const a = abandonedMap.get(choreSubject) ?? 0;
+      const p = postponedMap.get(choreSubject) ?? 0;
+      const totalDone = c + l;
+      const total = totalDone + a;
+      return {
+        choreSubject,
+        completed: c,
+        late: l,
+        abandoned: a,
+        postponed: p,
+        total,
+        rate: total > 0 ? totalDone / total : 0,
+      };
     })
     .sort((a, b) => a.rate - b.rate);
 };
@@ -229,6 +276,79 @@ export const computeMissedPatterns = (allEvents: HistoryEvent[]): MissedPatternS
     .sort((a, b) => b.missedCount - a.missedCount);
 };
 
+export const computeExecutiveSummary = (events: HistoryEvent[]): ExecutiveSummary => {
+  let totalOnTime = 0;
+  let totalLate = 0;
+  let totalAbandoned = 0;
+  let totalPostponed = 0;
+
+  for (const e of events) {
+    if (e.action === 'completed') totalOnTime++;
+    else if (e.action === 'completed_late') totalLate++;
+    else if (e.action === 'abandoned') totalAbandoned++;
+    else if (e.action === 'postponed' || e.action === 'auto_postponed') totalPostponed++;
+  }
+
+  const totalCompleted = totalOnTime + totalLate;
+  const overallRate = totalCompleted + totalAbandoned > 0
+    ? totalCompleted / (totalCompleted + totalAbandoned)
+    : 0;
+  const onTimePct = totalCompleted > 0 ? totalOnTime / totalCompleted : 0;
+
+  return { totalCompleted, totalOnTime, totalLate, totalAbandoned, totalPostponed, overallRate, onTimePct };
+};
+
+const toIsoDate = (d: Date): string => d.toISOString().slice(0, 10);
+
+export const computeWeeklyTrend = (allEvents: HistoryEvent[], weeks: number = 8): WeeklyBucket[] => {
+  const now = new Date();
+  // Find Monday of current week
+  const thisMonday = getStartOfWeek(now);
+
+  // Build bucket array: oldest-first
+  const buckets: WeeklyBucket[] = [];
+  for (let i = weeks - 1; i >= 0; i--) {
+    const monday = new Date(thisMonday);
+    monday.setDate(thisMonday.getDate() - i * 7);
+    const weekLabel = monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    buckets.push({
+      weekLabel,
+      weekStart: toIsoDate(monday),
+      completed: 0,
+      late: 0,
+      abandoned: 0,
+      postponed: 0,
+    });
+  }
+
+  // Build a map from weekStart -> bucket index for O(1) lookup
+  const bucketIndex = new Map<string, number>();
+  for (let i = 0; i < buckets.length; i++) {
+    bucketIndex.set(buckets[i].weekStart, i);
+  }
+
+  const earliestMs = new Date(buckets[0].weekStart + 'T00:00:00').getTime();
+
+  for (const e of allEvents) {
+    const ts = new Date(e.timestamp).getTime();
+    if (ts < earliestMs) continue;
+
+    const eventDate = new Date(e.timestamp);
+    const eventMonday = getStartOfWeek(eventDate);
+    const key = toIsoDate(eventMonday);
+    const idx = bucketIndex.get(key);
+    if (idx === undefined) continue;
+
+    const bucket = buckets[idx];
+    if (e.action === 'completed') bucket.completed++;
+    else if (e.action === 'completed_late') bucket.late++;
+    else if (e.action === 'abandoned') bucket.abandoned++;
+    else if (e.action === 'postponed' || e.action === 'auto_postponed') bucket.postponed++;
+  }
+
+  return buckets;
+};
+
 const formatRangeLabel = (period: Period, range: DateRange | null): string => {
   if (!range) return 'All Time';
   const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -254,5 +374,7 @@ export const computeAnalytics = (
     missedPatterns: computeMissedPatterns(allEvents),
     totalEvents: events.length,
     rangeLabel: formatRangeLabel(period, range),
+    executiveSummary: computeExecutiveSummary(events),
+    weeklyTrend: computeWeeklyTrend(allEvents, 8),
   };
 };

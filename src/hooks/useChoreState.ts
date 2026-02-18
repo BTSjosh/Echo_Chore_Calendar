@@ -101,7 +101,7 @@ export default function useChoreState(): UseChoreStateReturn {
           appendHistoryEvent({
             action: 'uncompleted',
             choreSubject: subject,
-            members: [],
+            members: getAssignedMembers(chore, currentDate),
             dueDate: getDateKey(currentDate),
           });
           return { ...chore, completed: false, completedBy: [] };
@@ -109,7 +109,7 @@ export default function useChoreState(): UseChoreStateReturn {
         appendHistoryEvent({
           action: 'completed',
           choreSubject: subject,
-          members: [],
+          members: getAssignedMembers(chore, currentDate),
           dueDate: getDateKey(currentDate),
         });
         return advanceRotation({ ...chore, completed: true, completedBy: [] }, currentDate);
@@ -155,10 +155,12 @@ export default function useChoreState(): UseChoreStateReturn {
 
   const postponeToDate = (subject: string, fromDateKey: string, toDate: string) => {
     dirtyRef.current = true;
+    const choreForPostpone = chores.find((c) => c.subject === subject);
+    const postponeDate = parseDateKey(fromDateKey) ?? toDateOnly(new Date());
     appendHistoryEvent({
       action: 'postponed',
       choreSubject: subject,
-      members: [],
+      members: choreForPostpone ? getAssignedMembers(choreForPostpone, postponeDate) : [],
       dueDate: fromDateKey,
       postponedTo: toDate,
     });
@@ -247,17 +249,18 @@ export default function useChoreState(): UseChoreStateReturn {
 
   const completeLateOverdue = (subject: string, fromDate: string) => {
     dirtyRef.current = true;
+    const choreForLate = chores.find((c) => c.subject === subject);
+    const overdueDate = parseDateKey(fromDate) ?? toDateOnly(new Date());
     appendHistoryEvent({
       action: 'completed_late',
       choreSubject: subject,
-      members: [],
+      members: choreForLate ? getAssignedMembers(choreForLate, overdueDate) : [],
       dueDate: fromDate,
     });
     // Advance rotation so the next person is up, same as a normal completion.
     setChores((prev) => {
       const next = prev.map((chore) => {
         if (chore.subject !== subject) return chore;
-        const overdueDate = parseDateKey(fromDate) ?? toDateOnly(new Date());
         return advanceRotation({ ...chore, completed: true, completedBy: [] }, overdueDate);
       });
       saveToLocalStorage(extractProgress(next));
@@ -268,10 +271,12 @@ export default function useChoreState(): UseChoreStateReturn {
 
   const abandonOverdue = (subject: string, fromDate: string) => {
     dirtyRef.current = true;
+    const choreForAbandon = chores.find((c) => c.subject === subject);
+    const abandonDate = parseDateKey(fromDate) ?? toDateOnly(new Date());
     appendHistoryEvent({
       action: 'abandoned',
       choreSubject: subject,
-      members: [],
+      members: choreForAbandon ? getAssignedMembers(choreForAbandon, abandonDate) : [],
       dueDate: fromDate,
     });
     // Advance rotation so the next person is up, but don't mark the chore completed.
@@ -301,18 +306,17 @@ export default function useChoreState(): UseChoreStateReturn {
     const tomorrowKey = getDateKey(tomorrow);
 
     setChores((prevChores) => {
-      const undoneSubjects = prevChores
-        .filter(
-          (chore) =>
-            isDueOnDate(chore, todayNorm) &&
-            !isChoreComplete(chore, getAssignedMembers(chore, todayNorm), todayNorm)
-        )
-        .map((chore) => chore.subject);
+      const undoneChores = prevChores.filter(
+        (chore) =>
+          isDueOnDate(chore, todayNorm) &&
+          !isChoreComplete(chore, getAssignedMembers(chore, todayNorm), todayNorm)
+      );
 
-      if (undoneSubjects.length > 0) {
+      if (undoneChores.length > 0) {
         setPostponedOverrides((prevOverrides) => {
           const newOverrides = [...prevOverrides];
-          undoneSubjects.forEach((subject) => {
+          undoneChores.forEach((chore) => {
+            const { subject } = chore;
             const alreadyExists = prevOverrides.some(
               (override) =>
                 override.subject === subject &&
@@ -324,7 +328,7 @@ export default function useChoreState(): UseChoreStateReturn {
               appendHistoryEvent({
                 action: 'auto_postponed',
                 choreSubject: subject,
-                members: [],
+                members: getAssignedMembers(chore, todayNorm),
                 dueDate: todayKey,
                 postponedTo: tomorrowKey,
               });

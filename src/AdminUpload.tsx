@@ -17,8 +17,179 @@ import {
   SUPABASE_TABLE,
   SUPABASE_REMOTE_ID,
 } from './utils/sync';
-import { loadHistory, exportHistoryAsCsv, saveHistory, mergeHistory } from './utils/history';
+import {
+  loadHistory,
+  exportHistoryAsCsv,
+  exportHistoryAsXlsx,
+  saveHistory,
+  mergeHistory,
+  type ExportOptions,
+} from './utils/history';
 import type { Chore, PostponeEntry, HistoryEvent } from './types';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type DateRangePreset = 'all' | 'last30' | 'last90' | 'thisMonth';
+
+interface ExportDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onExportCsv: (options: ExportOptions) => void;
+  onExportXlsx: (options: ExportOptions) => void;
+  household: string[];
+}
+
+// ── ExportDialog ──────────────────────────────────────────────────────────────
+
+const DATE_RANGE_PRESETS: { value: DateRangePreset; label: string }[] = [
+  { value: 'all', label: 'All Time' },
+  { value: 'last30', label: 'Last 30 days' },
+  { value: 'last90', label: 'Last 90 days' },
+  { value: 'thisMonth', label: 'This Month' },
+];
+
+function buildDateRange(preset: DateRangePreset): { start: Date; end: Date } | null {
+  if (preset === 'all') return null;
+  const now = new Date();
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+
+  if (preset === 'last30') {
+    const start = new Date(now);
+    start.setDate(now.getDate() - 30);
+    start.setHours(0, 0, 0, 0);
+    return { start, end };
+  }
+  if (preset === 'last90') {
+    const start = new Date(now);
+    start.setDate(now.getDate() - 90);
+    start.setHours(0, 0, 0, 0);
+    return { start, end };
+  }
+  // thisMonth
+  const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  return { start, end };
+}
+
+function ExportDialog({ open, onClose, onExportCsv, onExportXlsx, household }: ExportDialogProps) {
+  const [datePreset, setDatePreset] = useState<DateRangePreset>('all');
+  const [allMembers, setAllMembers] = useState(true);
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set(household));
+
+  if (!open) return null;
+
+  const toggleMember = (member: string) => {
+    setSelectedMembers((prev) => {
+      const next = new Set(prev);
+      if (next.has(member)) next.delete(member);
+      else next.add(member);
+      return next;
+    });
+  };
+
+  const buildOptions = (): ExportOptions => ({
+    dateRange: buildDateRange(datePreset),
+    personFilter: allMembers ? null : [...selectedMembers],
+  });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-[#1e1e1e] border border-green-500/20 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-semibold text-slate-100">Export History</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-200 text-xl leading-none transition"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Date Range */}
+        <fieldset className="mb-5">
+          <legend className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            Date Range
+          </legend>
+          <div className="space-y-1.5">
+            {DATE_RANGE_PRESETS.map((p) => (
+              <label key={p.value} className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="dateRange"
+                  value={p.value}
+                  checked={datePreset === p.value}
+                  onChange={() => setDatePreset(p.value)}
+                  className="accent-green-500"
+                />
+                <span className="text-sm text-slate-300">{p.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        {/* Person Filter */}
+        <fieldset className="mb-6">
+          <legend className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            Filter by Person
+          </legend>
+          <label className="flex items-center gap-2.5 cursor-pointer mb-2">
+            <input
+              type="checkbox"
+              checked={allMembers}
+              onChange={(e) => {
+                setAllMembers(e.target.checked);
+                if (e.target.checked) setSelectedMembers(new Set(household));
+              }}
+              className="accent-green-500"
+            />
+            <span className="text-sm text-slate-300 font-medium">All members</span>
+          </label>
+          {!allMembers && (
+            <div className="ml-5 space-y-1.5">
+              {household.map((member) => (
+                <label key={member} className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedMembers.has(member)}
+                    onChange={() => toggleMember(member)}
+                    className="accent-green-500"
+                  />
+                  <span className="text-sm text-slate-300">{member}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </fieldset>
+
+        {/* Buttons */}
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => onExportCsv(buildOptions())}
+            className="flex-1 rounded-full border border-slate-700 bg-[#2a2a2a] px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 transition"
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => onExportXlsx(buildOptions())}
+            className="flex-1 rounded-full bg-green-500 text-slate-950 px-4 py-2.5 text-sm font-semibold hover:bg-green-400 transition"
+          >
+            Export XLSX
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Supabase upload ───────────────────────────────────────────────────────────
 
 const uploadFileToSupabase = async (payload: Record<string, unknown>): Promise<Response> => {
   const baseUrl = normalizeSupabaseUrl(SUPABASE_URL);
@@ -51,12 +222,15 @@ const uploadFileToSupabase = async (payload: Record<string, unknown>): Promise<R
   return response;
 };
 
+// ── AdminUpload ───────────────────────────────────────────────────────────────
+
 export default function AdminUpload() {
   const [status, setStatus] = useState('');
   const [uploading, setUploading] = useState(false);
   const [localStatus, setLocalStatus] = useState('');
   const [localBusy, setLocalBusy] = useState(false);
   const [historyBusy, setHistoryBusy] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const localFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -174,7 +348,7 @@ export default function AdminUpload() {
     }
   };
 
-  const triggerDownload = (content: string, filename: string, mimeType: string) => {
+  const triggerDownload = (content: string | Uint8Array, filename: string, mimeType: string) => {
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -186,16 +360,38 @@ export default function AdminUpload() {
     URL.revokeObjectURL(url);
   };
 
-  const handleExportHistoryCsv = () => {
+  const handleExportCsv = (options: ExportOptions) => {
     const history = loadHistory();
     if (history.length === 0) {
       setLocalStatus('No history events to export.');
+      setExportDialogOpen(false);
       return;
     }
     setHistoryBusy(true);
+    setExportDialogOpen(false);
     setTimeout(() => {
-      const csv = exportHistoryAsCsv(history);
+      const csv = exportHistoryAsCsv(history, options);
       triggerDownload(csv, `chore-history-${getFormattedDate()}.csv`, 'text/csv');
+      setHistoryBusy(false);
+    }, 50);
+  };
+
+  const handleExportXlsx = (options: ExportOptions) => {
+    const history = loadHistory();
+    if (history.length === 0) {
+      setLocalStatus('No history events to export.');
+      setExportDialogOpen(false);
+      return;
+    }
+    setHistoryBusy(true);
+    setExportDialogOpen(false);
+    setTimeout(() => {
+      const bytes = exportHistoryAsXlsx(history, HOUSEHOLD, options);
+      triggerDownload(
+        bytes,
+        `chore-history-${getFormattedDate()}.xlsx`,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
       setHistoryBusy(false);
     }, 50);
   };
@@ -279,16 +475,16 @@ export default function AdminUpload() {
           <div className="bg-[#181818] border border-green-500/20 rounded-2xl p-6">
             <h2 className="text-lg font-semibold text-slate-100 mb-1">Export History</h2>
             <p className="text-sm text-slate-400 mb-4">
-              Download the chore completion history log for analysis.
+              Download the chore completion history as a filtered CSV or multi-sheet XLSX spreadsheet.
             </p>
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={handleExportHistoryCsv}
+                onClick={() => setExportDialogOpen(true)}
                 disabled={historyBusy}
-                className="rounded-full border border-slate-700 bg-[#232323] px-5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="rounded-full bg-green-500 text-slate-950 px-5 py-2.5 text-sm font-semibold hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                {historyBusy ? 'Exporting…' : 'Export as CSV'}
+                {historyBusy ? 'Exporting…' : 'Export History…'}
               </button>
               <button
                 type="button"
@@ -363,6 +559,15 @@ export default function AdminUpload() {
           className="hidden"
         />
       </div>
+
+      {/* Export Dialog */}
+      <ExportDialog
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        onExportCsv={handleExportCsv}
+        onExportXlsx={handleExportXlsx}
+        household={HOUSEHOLD}
+      />
     </div>
   );
 }
