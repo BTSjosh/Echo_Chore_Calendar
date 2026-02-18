@@ -59,7 +59,7 @@ export default function ChoreCard({
       <div className="flex flex-wrap items-start justify-between gap-6">
         {/* Clickable text area — only this triggers expand/collapse */}
         <div
-          className="min-w-[220px] flex-1 cursor-pointer"
+          className="min-w-[220px] cursor-pointer"
           role="button"
           tabIndex={0}
           onClick={() => onToggleDescription(chore.subject)}
