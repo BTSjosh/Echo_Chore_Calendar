@@ -184,12 +184,12 @@ export default function ChoreCard({
                   onClick={() => onToggleCompleted(chore.subject)}
                   className={
                     "rounded-full border px-8 py-5 text-base font-semibold transition min-w-[11rem] text-center " +
-                    (chore.completed
+                    (complete
                       ? "border-green-400 bg-green-500/20 text-[#a7f3d0]"
                       : "border-green-500/40 bg-[#353E43] text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 transition-all duration-150")
                   }
                 >
-                  {chore.completed ? "\u2713 Done" : "Mark Done"}
+                  {complete ? "\u2713 Done" : "Mark Done"}
                 </button>
               )}
             </>

@@ -72,14 +72,23 @@ export default function useChoreState(): UseChoreStateReturn {
   // always reads up-to-date data from localStorage, not stale pre-render data.
 
   const advanceRotation = (chore: Chore, currentDate: Date): Chore => {
-    if (chore.assignmentType !== 'rotating') return chore;
+    const nextDue = getNextDueAfter(chore, currentDate);
+
+    if (chore.assignmentType !== 'rotating') {
+      // Set completedThrough so isCompletionActive can expire the completion on the next due date
+      return {
+        ...chore,
+        lastCompletedDate: getDateKey(currentDate),
+        completedThrough: nextDue ? getDateKey(nextDue) : undefined,
+      };
+    }
+
     const rotation = chore.rotation;
     const members = Array.isArray(rotation?.members) ? rotation!.members : [];
     if (!members.length) return chore;
 
     const currentIndex = getRotationIndex(chore, currentDate);
     const nextIndex = (currentIndex + 1) % members.length;
-    const nextDue = getNextDueAfter(chore, currentDate);
 
     return {
       ...chore,
@@ -104,7 +113,7 @@ export default function useChoreState(): UseChoreStateReturn {
             members: getAssignedMembers(chore, currentDate),
             dueDate: getDateKey(currentDate),
           });
-          return { ...chore, completed: false, completedBy: [] };
+          return { ...chore, completed: false, completedBy: [], lastCompletedDate: undefined, completedThrough: undefined };
         }
         appendHistoryEvent({
           action: 'completed',

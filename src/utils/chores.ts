@@ -464,12 +464,17 @@ export const getCompletedBy = (chore: Chore, assignedOverride?: string[]): strin
 
 export const isCompletionActive = (chore: Chore, date: Date): boolean => {
   if (!chore.completed) return false;
-  if (chore.assignmentType !== "rotating") return true;
 
+  // Date-aware expiry: if completedThrough is set, completion expires when the next due date arrives.
+  // This now applies to both rotating and non-rotating chores.
   const completedThrough = parseDateKey(chore.completedThrough);
   if (completedThrough) {
     return toDateOnly(date) < completedThrough;
   }
+
+  // Legacy non-rotating chores without completedThrough: treat as always complete.
+  // New completions will always have completedThrough set via advanceRotation.
+  if (chore.assignmentType !== "rotating") return true;
 
   const lastCompletedDate = parseDateKey(chore.lastCompletedDate);
   if (!lastCompletedDate) return true;
@@ -488,7 +493,7 @@ export const isChoreComplete = (chore: Chore, assignedOverride: string[] | undef
     const completedBy = getCompletedBy(chore, assigned);
     return assigned.every((member) => completedBy.includes(member));
   }
-  return isCompletionActive(chore, date ?? new Date());
+  return isCompletionActive(chore, date);
 };
 
 export const getAssignedMembers = (chore: Chore, date: Date): string[] => {

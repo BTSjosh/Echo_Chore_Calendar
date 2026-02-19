@@ -50,6 +50,7 @@ export default function useChoreEditorState() {
           completedBy: chore.completedBy,
           lastCompleted: chore.lastCompleted,
           lastCompletedDate: chore.lastCompletedDate,
+          completedThrough: chore.completedThrough,
           rotationIndex: chore.rotationIndex,
           rotationPosition: chore.rotationPosition,
           rotationCursor: chore.rotationCursor,
