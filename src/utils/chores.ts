@@ -477,7 +477,9 @@ export const isCompletionActive = (chore: Chore, date: Date): boolean => {
   if (chore.assignmentType !== "rotating") return true;
 
   const lastCompletedDate = parseDateKey(chore.lastCompletedDate);
-  if (!lastCompletedDate) return true;
+  // No date context for a rotating chore: treat as not active so the rotation can advance.
+  // (Legacy data pre-completedThrough. New completions always have completedThrough set.)
+  if (!lastCompletedDate) return false;
   const nextDue = getNextDueAfter(chore, lastCompletedDate);
   if (!nextDue) return true;
   return toDateOnly(date) < toDateOnly(nextDue);
