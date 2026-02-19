@@ -60,7 +60,13 @@ export default function useChoreState(): UseChoreStateReturn {
     const storedProgress = loadFromLocalStorage();
     const storedDefinitions = loadChoreDefinitions();
     const baseChores = (storedDefinitions ?? SEED_CHORES) as RawImportedChore[];
-    return applyProgress(buildInitialChores(baseChores), storedProgress);
+    const normalized = buildInitialChores(baseChores);
+    // Re-save normalized definitions to strip legacy/obsolete fields from old data
+    // so that backups and Supabase pushes always contain clean, current-format chores.
+    if (storedDefinitions) {
+      saveChoreDefinitions(normalized);
+    }
+    return applyProgress(normalized, storedProgress);
   });
 
   const [postponedOverrides, setPostponedOverrides] = useState<PostponeEntry[]>(
@@ -208,7 +214,9 @@ export default function useChoreState(): UseChoreStateReturn {
     const baseChores = (remoteDefinitions ?? SEED_CHORES) as RawImportedChore[];
 
     if (remoteDefinitions) {
-      saveChoreDefinitions(remoteDefinitions as unknown as Chore[]);
+      // Normalize before saving so definitions are stored in clean current format,
+      // stripping legacy fields (daysAhead, schedule, daysOfWeek, assignment, etc.)
+      saveChoreDefinitions(buildInitialChores(baseChores));
     }
 
     // Always merge history — additive only, no conflicts possible
