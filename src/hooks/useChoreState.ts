@@ -19,6 +19,7 @@ import {
   getAssignedMembers,
   getCompletedBy,
   isChoreComplete,
+  isCompletionActive,
   buildInitialChores,
   extractProgress,
   applyProgress,
@@ -224,6 +225,26 @@ export default function useChoreState(): UseChoreStateReturn {
     savePostpones(mergePostpones(loadPostpones(), remote));
   };
 
+  // Remove postpone overrides that are now stale because the chore was actually
+  // completed for the original due date (e.g. marked done on Echo Show before
+  // the PC's midnight rollover created the override).
+  const cleanupStalePostpones = (resolvedChores: Chore[]) => {
+    setPostponedOverrides((prev) => {
+      const cleaned = prev.filter((override) => {
+        const chore = resolvedChores.find((c) => c.subject === override.subject);
+        if (!chore) return true;
+        const originalDate = parseDateKey(override.fromDate);
+        if (!originalDate) return true;
+        // Drop the override only if the chore was completed for that original date
+        return !isCompletionActive(chore, originalDate);
+      });
+      if (cleaned.length !== prev.length) {
+        savePostpones(cleaned);
+      }
+      return cleaned;
+    });
+  };
+
   const processRemoteData = (payload: RemotePayload, updated_at: string | null): boolean => {
     if (!payload) return false;
     dirtyRef.current = true;
@@ -251,10 +272,15 @@ export default function useChoreState(): UseChoreStateReturn {
     }
 
     if (localIsNewer) {
-      // Rebuild chores from local progress so definitions stay current,
-      // but don't overwrite locally-resolved completions or postpones.
+      // Rebuild chores from local definitions + progress so that chores added in the
+      // editor (and not yet landed in Supabase) are preserved. Remote definitions are
+      // used as fallback only if there are no local definitions.
       const localProgress = loadFromLocalStorage();
-      setChores(applyProgress(buildInitialChores(baseChores), localProgress));
+      const localDefs = loadChoreDefinitions();
+      const localBaseChores = (localDefs ?? remoteDefinitions ?? SEED_CHORES) as RawImportedChore[];
+      const resolvedChores = applyProgress(buildInitialChores(localBaseChores), localProgress);
+      setChores(resolvedChores);
+      cleanupStalePostpones(resolvedChores);
       return true;
     }
 
@@ -262,7 +288,8 @@ export default function useChoreState(): UseChoreStateReturn {
     clearPushIntent();
     const remoteProgress = extractRemoteProgress(payload);
     const storedProgress = remoteProgress ?? loadFromLocalStorage();
-    setChores(applyProgress(buildInitialChores(baseChores), storedProgress));
+    const resolvedChores = applyProgress(buildInitialChores(baseChores), storedProgress);
+    setChores(resolvedChores);
 
     if (remoteProgress) {
       saveToLocalStorage(remoteProgress);
@@ -274,6 +301,11 @@ export default function useChoreState(): UseChoreStateReturn {
     if (remotePostpones) {
       mergeRemotePostpones(remotePostpones);
     }
+
+    // Clean up stale postpone overrides now that remote progress is applied.
+    // This removes overrides created by midnight rollover for chores that were
+    // completed on another device before the rollover ran.
+    cleanupStalePostpones(resolvedChores);
 
     return true;
   };

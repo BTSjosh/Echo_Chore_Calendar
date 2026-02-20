@@ -3,10 +3,12 @@ import {
   loadChoreDefinitions,
   saveChoreDefinitions,
   saveToLocalStorage,
+  savePushIntent,
   STORAGE_KEY,
 } from '../../utils/storage';
 import { SEED_CHORES, buildInitialChores } from '../../utils/chores';
 import { loadHistory, saveHistory } from '../../utils/history';
+import { pushSnapshotToSupabase } from '../../utils/sync';
 import type { Chore, ChoreDefinition, RawImportedChore, HistoryEvent } from '../../types';
 
 export default function useChoreEditorState() {
@@ -30,6 +32,11 @@ export default function useChoreEditorState() {
       } as Chore;
       const next = [...prev, newChore];
       persistDefinitions(next);
+      // Push so other devices (Echo Show) see the new chore immediately.
+      // savePushIntent guards processRemoteData from overwriting local defs with a
+      // stale remote snapshot before this push lands in Supabase.
+      savePushIntent();
+      void pushSnapshotToSupabase();
       return next;
     });
   }, [persistDefinitions]);
@@ -65,6 +72,8 @@ export default function useChoreEditorState() {
         migrateHistorySubject(oldSubject, def.subject);
       }
 
+      savePushIntent();
+      void pushSnapshotToSupabase();
       return next;
     });
   }, [persistDefinitions]);
@@ -73,6 +82,8 @@ export default function useChoreEditorState() {
     setChores((prev) => {
       const next = prev.filter((c) => c.subject !== subject);
       persistDefinitions(next);
+      savePushIntent();
+      void pushSnapshotToSupabase();
       return next;
     });
   }, [persistDefinitions]);

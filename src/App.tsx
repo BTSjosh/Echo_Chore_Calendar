@@ -23,6 +23,7 @@ import {
   getDueDatesInRange,
   getAssignedMembers,
   isChoreComplete,
+  isCompletionActive,
 } from './utils/chores'
 
 import useKeepAlive from './hooks/useKeepAlive'
@@ -145,18 +146,23 @@ function ChoreApp() {
           const overdueAssignees = originalDate
             ? getAssignedMembers(chore, originalDate)
             : todayAssignees;
-          filtered.push({
-            ...chore,
-            _instanceType: 'overdue',
-            _originalDueDate: earliestOverdue.fromDate,
-            _overdueAssignees: overdueAssignees,
-          });
-          // If overdue card is for the same person as today's assignment,
-          // suppress the normal card — it's a duplicate (e.g. fixed daily chore).
-          // If it's a different person (rotating chore), show both cards.
-          overdueIsSamePerson =
-            overdueAssignees.length === todayAssignees.length &&
-            overdueAssignees.every((m) => todayAssignees.includes(m));
+          // Skip stale overdue card: chore was actually completed for that original date
+          // (e.g. Echo Show marked it done before PC's midnight rollover created the override).
+          const isStaleOverride = originalDate && isCompletionActive(chore, originalDate);
+          if (!isStaleOverride) {
+            filtered.push({
+              ...chore,
+              _instanceType: 'overdue',
+              _originalDueDate: earliestOverdue.fromDate,
+              _overdueAssignees: overdueAssignees,
+            });
+            // If overdue card is for the same person as today's assignment,
+            // suppress the normal card — it's a duplicate (e.g. fixed daily chore).
+            // If it's a different person (rotating chore), show both cards.
+            overdueIsSamePerson =
+              overdueAssignees.length === todayAssignees.length &&
+              overdueAssignees.every((m) => todayAssignees.includes(m));
+          }
         }
 
         // Show the normal card unless: postponed away from today, or overdue card

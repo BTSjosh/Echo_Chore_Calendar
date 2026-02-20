@@ -472,16 +472,13 @@ export const isCompletionActive = (chore: Chore, date: Date): boolean => {
     return toDateOnly(date) < completedThrough;
   }
 
-  // Legacy non-rotating chores without completedThrough: treat as always complete.
-  // New completions will always have completedThrough set via advanceRotation.
-  if (chore.assignmentType !== "rotating") return true;
-
+  // Legacy chores without completedThrough: derive expiry from lastCompletedDate.
+  // New completions always have completedThrough set via advanceRotation.
   const lastCompletedDate = parseDateKey(chore.lastCompletedDate);
-  // No date context for a rotating chore: treat as not active so the rotation can advance.
-  // (Legacy data pre-completedThrough. New completions always have completedThrough set.)
+  // No date context — treat as not active so stale completions don't persist forever.
   if (!lastCompletedDate) return false;
   const nextDue = getNextDueAfter(chore, lastCompletedDate);
-  if (!nextDue) return true;
+  if (!nextDue) return true; // one-time chore, always complete once done
   return toDateOnly(date) < toDateOnly(nextDue);
 };
 
