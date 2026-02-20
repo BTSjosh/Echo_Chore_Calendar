@@ -421,12 +421,6 @@ export default function AdminUpload() {
             <h1 className="text-4xl font-semibold">Settings</h1>
             <div className="flex items-center gap-2">
               <a
-                href="#/editor"
-                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 transition"
-              >
-                Edit Chores
-              </a>
-              <a
                 href="#/stats"
                 className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-600 transition"
               >
@@ -446,6 +440,20 @@ export default function AdminUpload() {
         </div>
 
         <div className="space-y-6">
+          {/* Edit Chores */}
+          <div className="bg-[#181818] border border-green-500/20 rounded-2xl p-6">
+            <h2 className="text-lg font-semibold text-slate-100 mb-1">Edit Chores</h2>
+            <p className="text-sm text-slate-400 mb-4">
+              Add, edit, or remove chore definitions. Changes sync to all devices automatically.
+            </p>
+            <a
+              href="#/editor"
+              className="inline-block rounded-full bg-green-500 text-slate-950 px-5 py-2.5 text-sm font-semibold hover:bg-green-400 transition"
+            >
+              Open Chore Editor
+            </a>
+          </div>
+
           {/* Backup & Restore */}
           <div className="bg-[#181818] border border-green-500/20 rounded-2xl p-6">
             <h2 className="text-lg font-semibold text-slate-100 mb-1">Backup &amp; Restore</h2>
