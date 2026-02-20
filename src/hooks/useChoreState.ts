@@ -259,12 +259,6 @@ export default function useChoreState(): UseChoreStateReturn {
     const remoteDefinitions = extractRemoteChores(payload);
     const baseChores = (remoteDefinitions ?? SEED_CHORES) as RawImportedChore[];
 
-    if (remoteDefinitions) {
-      // Normalize before saving so definitions are stored in clean current format,
-      // stripping legacy fields (daysAhead, schedule, daysOfWeek, assignment, etc.)
-      saveChoreDefinitions(buildInitialChores(baseChores));
-    }
-
     // Always merge history — additive only, no conflicts possible
     if (Array.isArray(payload?.history)) {
       const merged = mergeHistory(loadHistory(), payload.history);
@@ -272,9 +266,9 @@ export default function useChoreState(): UseChoreStateReturn {
     }
 
     if (localIsNewer) {
-      // Rebuild chores from local definitions + progress so that chores added in the
-      // editor (and not yet landed in Supabase) are preserved. Remote definitions are
-      // used as fallback only if there are no local definitions.
+      // Local push is newer than the remote snapshot — keep local definitions so
+      // chores added/edited in the editor survive until the push lands in Supabase.
+      // Do NOT overwrite echo-chore-definitions here; use whatever is stored locally.
       const localProgress = loadFromLocalStorage();
       const localDefs = loadChoreDefinitions();
       const localBaseChores = (localDefs ?? remoteDefinitions ?? SEED_CHORES) as RawImportedChore[];
@@ -284,7 +278,13 @@ export default function useChoreState(): UseChoreStateReturn {
       return true;
     }
 
-    // Remote is newer — clear push intent and apply remote data fully
+    // Remote is newer — save remote definitions (normalised) then apply fully.
+    if (remoteDefinitions) {
+      // Normalize before saving so definitions are stored in clean current format,
+      // stripping legacy fields (daysAhead, schedule, daysOfWeek, assignment, etc.)
+      saveChoreDefinitions(buildInitialChores(baseChores));
+    }
+
     clearPushIntent();
     const remoteProgress = extractRemoteProgress(payload);
     const storedProgress = remoteProgress ?? loadFromLocalStorage();
