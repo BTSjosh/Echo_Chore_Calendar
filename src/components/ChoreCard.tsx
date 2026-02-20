@@ -118,14 +118,14 @@ export default function ChoreCard({
                     onClick={() => {
                       if (originalDueDate) onCompleteLateOverdue(chore.subject, originalDueDate);
                     }}
-                    className="rounded-full border border-green-500/40 bg-[#353E43] px-6 py-4 text-base font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[8rem] text-center transition-all duration-150"
+                    className="rounded-full border border-green-500/40 bg-[#353E43] px-6 py-4 text-base font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[8rem] text-center transition-all duration-150"
                   >
                     Yes, Done
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowConfirm(false)}
-                    className="rounded-full border border-slate-600 bg-[#353E43] px-6 py-4 text-base font-semibold text-slate-300 hover:bg-[#4a555c] hover:border-slate-500 min-w-[8rem] text-center transition-all duration-150"
+                    className="rounded-full border border-slate-600 bg-[#353E43] px-6 py-4 text-base font-semibold text-slate-300 hover:bg-[#4a555c] hover:border-slate-500 active:scale-95 min-w-[8rem] text-center transition-all duration-150"
                   >
                     Cancel
                   </button>
@@ -136,14 +136,14 @@ export default function ChoreCard({
                 <button
                   type="button"
                   onClick={() => setShowConfirm(true)}
-                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
+                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[11rem] text-center transition-all duration-150"
                 >
                   Mark Done
                 </button>
                 <button
                   type="button"
                   onClick={() => onOpenPostponeSelector(chore.subject, originalDueDate)}
-                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
+                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[11rem] text-center transition-all duration-150"
                 >
                   Postpone
                 </button>
@@ -152,7 +152,7 @@ export default function ChoreCard({
                   onClick={() => {
                     if (originalDueDate) onAbandonOverdue(chore.subject, originalDueDate);
                   }}
-                  className="rounded-full border border-red-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-red-300 hover:bg-[#4a555c] hover:border-red-400 min-w-[11rem] text-center transition-all duration-150"
+                  className="rounded-full border border-red-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-red-300 hover:bg-[#4a555c] hover:border-red-400 active:scale-95 min-w-[11rem] text-center transition-all duration-150"
                 >
                   Abandon
                 </button>
@@ -164,7 +164,7 @@ export default function ChoreCard({
                 <button
                   type="button"
                   onClick={() => onOpenPostponeSelector(chore.subject)}
-                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
+                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[11rem] text-center transition-all duration-150"
                   style={{ marginRight: '0.5rem' }}
                 >
                   Postpone
@@ -174,7 +174,7 @@ export default function ChoreCard({
                 <button
                   type="button"
                   onClick={() => onOpenAssigneePicker(chore.subject)}
-                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 min-w-[11rem] text-center transition-all duration-150"
+                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[11rem] text-center transition-all duration-150"
                 >
                   Mark Done
                 </button>
@@ -183,10 +183,10 @@ export default function ChoreCard({
                   type="button"
                   onClick={() => onToggleCompleted(chore.subject)}
                   className={
-                    "rounded-full border px-8 py-5 text-base font-semibold transition min-w-[11rem] text-center " +
+                    "rounded-full border px-8 py-5 text-base font-semibold transition-all duration-150 min-w-[11rem] text-center active:scale-95 " +
                     (complete
                       ? "border-green-400 bg-green-500/20 text-[#a7f3d0]"
-                      : "border-green-500/40 bg-[#353E43] text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 transition-all duration-150")
+                      : "border-green-500/40 bg-[#353E43] text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400")
                   }
                 >
                   {complete ? "\u2713 Done" : "Mark Done"}

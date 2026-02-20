@@ -42,6 +42,8 @@ function ChoreApp() {
   const [assigneePicker, setAssigneePicker] = useState<string | null>(null);
   const [expandedChore, setExpandedChore] = useState<string | null>(null);
   const assigneeCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [toast, setToast] = useState<{ message: string; variant: 'done' | 'abandoned' | 'postponed' } | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const choreState = useChoreState();
   const {
@@ -211,16 +213,32 @@ function ChoreApp() {
     return visibleChores.filter((c) => c._instanceType === 'overdue').length;
   }, [visibleChores]);
 
+  const showToast = (message: string, variant: 'done' | 'abandoned' | 'postponed') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ message, variant });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimeoutRef.current = null;
+    }, 2000);
+  };
+
   const handleCompleteLateOverdue = (subject: string, fromDate: string) => {
     completeLateOverdue(subject, fromDate);
+    showToast('✓ Marked done!', 'done');
   };
 
   const handleAbandonOverdue = (subject: string, fromDate: string) => {
     abandonOverdue(subject, fromDate);
+    showToast('Chore abandoned', 'abandoned');
   };
 
   const handleToggleCompleted = (subject: string) => {
+    const chore = chores.find(c => c.subject === subject);
+    const wasComplete = chore
+      ? isChoreComplete(chore, getAssignedMembers(chore, currentDate), currentDate)
+      : false;
     toggleCompleted(subject, currentDate);
+    if (!wasComplete) showToast('✓ Done!', 'done');
   };
 
   const handleToggleMemberCompleted = (subject: string, member: string) => {
@@ -270,6 +288,7 @@ function ChoreApp() {
     setExpandedChore(null);
     setCurrentDate(new Date());
     setPostponeTarget(null);
+    showToast('Postponed', 'postponed');
   };
 
   // Build a key for each visible chore using instanceType to disambiguate
@@ -447,6 +466,22 @@ function ChoreApp() {
           onClose={closePostponeSelector}
         />
       )}
+
+    {/* Action feedback toast */}
+    {toast && (
+      <div
+        className={
+          "fixed bottom-10 left-1/2 -translate-x-1/2 z-50 px-10 py-5 rounded-2xl text-3xl font-bold shadow-2xl pointer-events-none " +
+          (toast.variant === 'done'
+            ? "bg-green-500 text-slate-950"
+            : toast.variant === 'abandoned'
+            ? "bg-amber-500 text-slate-950"
+            : "bg-sky-500 text-slate-950")
+        }
+      >
+        {toast.message}
+      </div>
+    )}
 
     {/* Hidden iframe to keep Silk open */}
     <iframe
