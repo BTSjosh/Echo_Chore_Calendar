@@ -119,7 +119,21 @@ export default function useChoreState(): UseChoreStateReturn {
             members: getAssignedMembers(chore, currentDate),
             dueDate: getDateKey(currentDate),
           });
-          return { ...chore, completed: false, completedBy: [], lastCompletedDate: undefined, completedThrough: undefined };
+          // Roll the rotation index back to what it was before completion so that
+          // mark → unmark is a no-op for the rotation. Without this, every
+          // uncheck advances the rotation one step, confusingly changing the assignee.
+          const rolledBackIndex = Number.isFinite(chore.rotationIndexPrev)
+            ? chore.rotationIndexPrev
+            : chore.rotationIndex;
+          return {
+            ...chore,
+            completed: false,
+            completedBy: [],
+            lastCompletedDate: undefined,
+            completedThrough: undefined,
+            rotationIndex: rolledBackIndex,
+            rotationIndexPrev: undefined,
+          };
         }
         appendHistoryEvent({
           action: 'completed',
@@ -155,12 +169,23 @@ export default function useChoreState(): UseChoreStateReturn {
           members: [member],
           dueDate: getDateKey(currentDate),
         });
+        const wasCompleted = chore.completed;
         const completed =
           assigned.length > 1
             ? assigned.every((name) => nextCompletedBy.includes(name))
             : Boolean(chore.completed);
         const updated: Chore = { ...chore, completedBy: nextCompletedBy, completed };
-        return completed ? advanceRotation(updated, currentDate) : updated;
+        if (completed) return advanceRotation(updated, currentDate);
+        // If dropping from fully-done back to incomplete, roll back the rotation
+        // so the assignee doesn't silently jump to the next person.
+        if (wasCompleted && !completed) {
+          const rolledBackIndex = Number.isFinite(chore.rotationIndexPrev)
+            ? chore.rotationIndexPrev
+            : chore.rotationIndex;
+          return { ...updated, rotationIndex: rolledBackIndex, rotationIndexPrev: undefined,
+            lastCompletedDate: undefined, completedThrough: undefined };
+        }
+        return updated;
       });
       saveToLocalStorage(extractProgress(next));
       return next;
