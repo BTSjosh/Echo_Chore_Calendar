@@ -168,11 +168,14 @@ export default function useChoreSync(
     };
   }, []);
 
-  // Auto-push to Supabase when tab is hidden or page is unloading
+  // Auto-push to Supabase when tab is hidden, page is unloading, or periodically.
+  // The periodic push is critical for the Echo Show (Silk browser) where the page
+  // stays alive permanently and visibilitychange/beforeunload may never fire.
   useEffect(() => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
 
     const PUSH_THROTTLE_MS = 5000;
+    const PUSH_INTERVAL_MS = 60 * 1000; // push every 60s if dirty
 
     const shouldPush = () => {
       if (!dirtyRef.current) return false;
@@ -181,12 +184,16 @@ export default function useChoreSync(
       return true;
     };
 
+    const doPush = () => {
+      lastPushRef.current = Date.now();
+      dirtyRef.current = false;
+      savePushIntent();
+      pushSnapshotToSupabase();
+    };
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' && shouldPush()) {
-        lastPushRef.current = Date.now();
-        dirtyRef.current = false;
-        savePushIntent();
-        pushSnapshotToSupabase();
+        doPush();
       }
     };
 
@@ -208,10 +215,18 @@ export default function useChoreSync(
       }
     };
 
+    // Periodic push so Echo Show (always-on, tab never hidden) still syncs changes
+    const pushInterval = setInterval(() => {
+      if (shouldPush()) {
+        doPush();
+      }
+    }, PUSH_INTERVAL_MS);
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
+      clearInterval(pushInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
