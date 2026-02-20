@@ -39,6 +39,7 @@ export default function ChoreCard({
   onOpenAssigneePicker,
 }: ChoreCardProps) {
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
   const isOverdue = instanceType === 'overdue';
   const assignedList = isOverdue && overdueAssignees ? overdueAssignees : getAssignedMembers(chore, currentDate);
   const completedBy = getCompletedBy(chore, assignedList);
@@ -131,6 +132,28 @@ export default function ChoreCard({
                   </button>
                 </div>
               </div>
+            ) : showAbandonConfirm ? (
+              <div className="flex flex-col items-center gap-3">
+                <p className="text-base font-semibold text-red-300 text-center">Skip this chore?<br />Rotation will move on.</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (originalDueDate) onAbandonOverdue(chore.subject, originalDueDate);
+                    }}
+                    className="rounded-full border border-red-500/40 bg-[#353E43] px-6 py-4 text-base font-semibold text-red-300 hover:bg-[#4a555c] hover:border-red-400 active:scale-95 min-w-[8rem] text-center transition-all duration-150"
+                  >
+                    Yes, Skip
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAbandonConfirm(false)}
+                    className="rounded-full border border-slate-600 bg-[#353E43] px-6 py-4 text-base font-semibold text-slate-300 hover:bg-[#4a555c] hover:border-slate-500 active:scale-95 min-w-[8rem] text-center transition-all duration-150"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="flex flex-wrap items-center gap-3">
                 <button
@@ -149,9 +172,7 @@ export default function ChoreCard({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (originalDueDate) onAbandonOverdue(chore.subject, originalDueDate);
-                  }}
+                  onClick={() => setShowAbandonConfirm(true)}
                   className="rounded-full border border-red-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-red-300 hover:bg-[#4a555c] hover:border-red-400 active:scale-95 min-w-[11rem] text-center transition-all duration-150"
                 >
                   Abandon

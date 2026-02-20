@@ -160,7 +160,7 @@ export default function useChoreState(): UseChoreStateReturn {
         const nextCompletedBy = removing
           ? completedBy.filter((name) => name !== member)
           : [...completedBy, member];
-        if (completedBy.length === 0 && nextCompletedBy.length > 0) {
+        if (!removing && assigned.every((name) => nextCompletedBy.includes(name))) {
           shouldAutoClose = true;
         }
         appendHistoryEvent({
