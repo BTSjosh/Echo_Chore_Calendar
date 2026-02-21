@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chore Calendar • Launching...</title>
+    <!-- Fallback: meta redirect if JS is blocked -->
+    <meta http-equiv="refresh" content="0; url=https://btsjosh.github.io/Echo_Chore_Calendar/">
+    <script>
+        // Redirect from inside Silk so the browser engine is already warm.
+        // Cache-bust via ts so Silk doesn't serve a stale version of the main app.
+        window.location.replace(
+            'https://btsjosh.github.io/Echo_Chore_Calendar/?ts=' + Date.now()
+        );
+    </script>
+    <style>
+        body {
+            margin: 0;
+            background: #000;
+            color: #fff;
+            font-family: sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-size: 48px;
+        }
+    </style>
+</head>
+<body>
+    <div>Opening Chore Calendar…</div>
+</body>
+</html>
