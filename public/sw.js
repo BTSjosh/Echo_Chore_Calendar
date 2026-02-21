@@ -29,8 +29,9 @@ self.addEventListener('fetch', event => {
     // Skip HTML — always fetch fresh (respects no-store on index.html)
     if (url.pathname.endsWith('.html') || url.pathname.endsWith('/')) return;
 
-    // Cache hashed static assets (JS, CSS, fonts, images, audio)
-    if (/\.(js|css|woff2?|ttf|png|jpg|jpeg|svg|webp|mp3)$/.test(url.pathname)) {
+    // Cache hashed static assets (JS, CSS, fonts, images)
+    // Exclude audio/video — range requests return 206 which Cache API rejects
+    if (/\.(js|css|woff2?|ttf|png|jpg|jpeg|svg|webp)$/.test(url.pathname)) {
         event.respondWith(
             caches.open(CACHE_NAME).then(cache =>
                 cache.match(event.request).then(cached => {
