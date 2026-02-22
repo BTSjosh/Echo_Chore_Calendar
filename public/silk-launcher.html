@@ -15,11 +15,8 @@
         const target = 'https://btsjosh.github.io/Echo_Chore_Calendar/?ts=' + Date.now();
         window.location.replace(target);
         
-        // Keep-alive script — prevents Silk from closing the tab
-        setInterval(() => {
-            fetch('https://www.amazon.com/favicon.ico?' + Date.now())
-                .catch(() => {});
-        }, 240000); // every 4 minutes
+        // Keep-alive removed — the main app now uses silent audio playback
+        // which is the only technique Silk actually respects.
     </script>
     
     <style>

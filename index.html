@@ -20,12 +20,47 @@
       }
     </script>
 
-    <!-- KEEP-ALIVE SCRIPT - Prevents Silk from closing the tab on Echo Show 15 -->
+    <!-- KEEP-SILK-OPEN: plays a silent MP3 in a loop so Silk treats the page
+         as actively playing media and never triggers its ~10-min idle timeout.
+         Based on https://gitlab.com/DaGammla/keep-silk-open (MIT) -->
     <script>
-      setInterval(() => {
-        fetch('https://www.amazon.com/favicon.ico?' + Date.now())
-          .catch(() => {});
-      }, 240000); // every 4 minutes
+      (function () {
+        var ua = navigator.userAgent.toLowerCase();
+        if (!ua.includes('silk')) return;
+
+        // Resolve silent-loop.mp3 from the same directory as the page.
+        // On GitHub Pages this becomes /Echo_Chore_Calendar/silent-loop.mp3
+        var mp3 = new URL('silent-loop.mp3', window.location.href).href;
+
+        var audio = document.createElement('audio');
+        audio.src = mp3 + '?q=' + Date.now();
+        audio.muted = true;
+        audio.autoplay = true;
+        audio.loop = false;          // we reload manually so Silk sees fresh activity
+        document.body.appendChild(audio);
+
+        function reload() {
+          audio.src = mp3 + '?q=' + Date.now();
+          audio.currentTime = 0;
+          audio.play().catch(function () {});
+        }
+
+        // When the clip ends, reload it (cache-bust) and play again
+        audio.onended = reload;
+
+        // Also reload every 60s as a safety net
+        setInterval(reload, 60000);
+
+        // Silk requires a real user gesture before unmuted playback is allowed.
+        // Start muted+autoplay, then unmute on first touch.
+        var events = ['pointerdown', 'click', 'keydown'];
+        function unmute() {
+          audio.muted = false;
+          reload();
+          events.forEach(function (e) { document.removeEventListener(e, unmute); });
+        }
+        events.forEach(function (e) { document.addEventListener(e, unmute); });
+      })();
     </script>
 
   </body>
