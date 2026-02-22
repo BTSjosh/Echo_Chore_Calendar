@@ -1,3 +1,14 @@
+// Hours at which the logical day rolls over (0–23). Times before this hour
+// are treated as belonging to the previous calendar day, so chores completed
+// at e.g. 1am still count against yesterday's date.
+export const DAY_BOUNDARY_HOUR = 4;
+
+/** Returns a Date shifted back by DAY_BOUNDARY_HOUR hours, so that
+ *  calendar date extraction (getDate/getMonth/getFullYear) reflects the
+ *  "logical" day rather than the wall-clock calendar day. */
+export const getLogicalNow = (): Date =>
+  new Date(Date.now() - DAY_BOUNDARY_HOUR * 60 * 60 * 1000);
+
 export const toDateOnly = (value: Date | string | number): Date => {
   const date = value instanceof Date ? value : new Date(value);
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());

@@ -14,6 +14,7 @@ import {
   getNext4Days,
   getStartOfMonth,
   getEndOfMonth,
+  getLogicalNow,
 } from './utils/dates'
 
 import {
@@ -26,7 +27,6 @@ import {
   isCompletionActive,
 } from './utils/chores'
 
-import useKeepAlive from './hooks/useKeepAlive'
 import useChoreState from './hooks/useChoreState'
 import useMidnightRollover from './hooks/useMidnightRollover'
 import useChoreSync from './hooks/useChoreSync'
@@ -63,7 +63,6 @@ function ChoreApp() {
   const { currentDate, setCurrentDate } = useMidnightRollover(autoPostponeUndone);
   const { isReloading, handleReloadData } = useChoreSync(processRemoteData, dirtyRef);
 
-  useKeepAlive();
 
   const todayKey = useMemo(() => getDateKey(currentDate), [currentDate]);
   const postponeDates = useMemo(
@@ -292,7 +291,7 @@ function ChoreApp() {
   const handlePostponeToDate = (subject: string, date: Date) => {
     postponeToDate(subject, postponeTarget?.fromDate ?? todayKey, getDateKey(date));
     setExpandedChore(null);
-    setCurrentDate(new Date());
+    setCurrentDate(getLogicalNow());
     setPostponeTarget(null);
     showToast('Postponed', 'postponed');
   };
@@ -489,13 +488,7 @@ function ChoreApp() {
       </div>
     )}
 
-    {/* Hidden iframe to keep Silk open */}
-    <iframe
-      src="https://dagammla.gitlab.io/keep-silk-open/iframe.html"
-      style={{ display: 'none' }}
-      title="Keep Alive"
-    />
-    </div>
+</div>
   );
 }
 

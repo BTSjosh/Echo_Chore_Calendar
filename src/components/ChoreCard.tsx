@@ -41,9 +41,14 @@ export default function ChoreCard({
   const [showConfirm, setShowConfirm] = useState(false);
   const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
   const isOverdue = instanceType === 'overdue';
-  const assignedList = isOverdue && overdueAssignees ? overdueAssignees : getAssignedMembers(chore, currentDate);
+  // Yesterday tab: use yesterday's date for assignee/completion display so we
+  // show who was assigned then and whether it was actually done that day.
+  const effectiveDate = activeTab === "Yesterday"
+    ? new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() - 1)
+    : currentDate;
+  const assignedList = isOverdue && overdueAssignees ? overdueAssignees : getAssignedMembers(chore, effectiveDate);
   const completedBy = getCompletedBy(chore, assignedList);
-  const complete = isChoreComplete(chore, assignedList, currentDate);
+  const complete = isChoreComplete(chore, assignedList, effectiveDate);
 
   return (
     <article

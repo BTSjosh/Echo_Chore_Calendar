@@ -24,16 +24,16 @@ This is a **React 19 + Vite + Tailwind CSS v4** household chore management app o
 
 ### Application Structure
 
-Nearly all application logic lives in **`src/App.jsx`** (~1800 lines) — a single large component containing:
-- State management (useState/useRef/useMemo/useEffect)
-- All chore scheduling, rotation, and completion logic
-- Date utility functions (`toDateOnly`, `isDueOnDate`, `getNextDueDate`, etc.)
-- localStorage persistence and Supabase sync
-- Tab-based views: Yesterday / Today / This Week / This Month
-
-**`src/AdminUpload.jsx`** handles backup/restore and Supabase sync management.
-
-**`src/data/initialChores.json`** defines household members and seed chore data.
+- **`src/App.tsx`** — main component: tab/filter logic, chore card rendering, overdue card handling
+- **`src/hooks/useChoreState.ts`** — all completion/rotation/postpone state logic
+- **`src/hooks/useChoreSync.ts`** — Supabase fetch/push, visibility polling
+- **`src/hooks/useMidnightRollover.ts`** — day boundary rollover (fires at 4am, not midnight)
+- **`src/utils/chores.ts`** — isDueOnDate, getAssignedMembers, isCompletionActive, rotation logic
+- **`src/utils/dates.ts`** — date utilities including `getLogicalNow()` (4am day boundary)
+- **`src/utils/storage.ts`** — localStorage keys and PROGRESS_FIELDS list
+- **`src/editor/ChoreEditor.tsx`** — separate editor route (`#/editor`)
+- **`src/AdminUpload.tsx`** — backup/restore and Supabase sync management
+- **`src/data/initialChores.json`** — household members and seed chore data
 
 ### Data Model
 
@@ -46,6 +46,10 @@ Chore assignment supports two modes: `"fixed"` (static assignees) or `"rotating"
 
 Recurrence uses `frequency` (daily/once/weekly/monthly) with `interval`, `dayOfWeek`, and `dayOfMonth` fields.
 
+### Day Boundary
+
+The logical day ends at **4am** (not midnight). `getLogicalNow()` in `dates.ts` subtracts `DAY_BOUNDARY_HOUR` (4) hours from wall-clock time so all date calculations treat e.g. 1am as still belonging to the previous day. The rollover hook fires at 4am and calls `autoPostponeUndone` every night (not just on first page load).
+
 ### Supabase Sync (Optional)
 
 Cloud sync is opt-in via environment variables. The app fetches/pushes snapshots to a `chore_snapshots` table. Merge logic combines remote and local state — postpones are merged (union), chores are matched by subject with ID fallback.
@@ -56,7 +60,6 @@ Required env vars (see `.env.example`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON
 
 - Tailwind `scale-x-` transforms compensate for the Echo Show's narrow viewport rendering
 - Large touch targets (min-w-[11rem]) — no hover-dependent interactions
-- Silent audio loop (`public/silent-loop.mp3`) in an iframe keeps the browser alive
 - Cache-control meta tags + no-store fetch headers prevent stale UI on the device
 
 ### Styling

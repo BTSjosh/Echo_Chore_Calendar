@@ -25,7 +25,7 @@ import {
   applyProgress,
 } from '../utils/chores';
 
-import { getDateKey, toDateOnly, parseDateKey } from '../utils/dates';
+import { getDateKey, toDateOnly, parseDateKey, getLogicalNow } from '../utils/dates';
 
 import { mergePostpones, extractRemoteChores, extractRemoteProgress } from '../utils/sync';
 
@@ -113,7 +113,11 @@ export default function useChoreState(): UseChoreStateReturn {
     setChores((prev) => {
       const next = prev.map((chore) => {
         if (chore.subject !== subject) return chore;
-        if (chore.completed) {
+        // Use isCompletionActive (date-aware) rather than chore.completed.
+        // After completeLateOverdue, chore.completed=true but the completion may
+        // have already expired for the current date (completedThrough < currentDate).
+        // Checking chore.completed would incorrectly trigger the unmark branch.
+        if (isCompletionActive(chore, currentDate)) {
           appendHistoryEvent({
             action: 'uncompleted',
             choreSubject: subject,
@@ -197,7 +201,7 @@ export default function useChoreState(): UseChoreStateReturn {
   const postponeToDate = (subject: string, fromDateKey: string, toDate: string) => {
     dirtyRef.current = true;
     const choreForPostpone = chores.find((c) => c.subject === subject);
-    const postponeDate = parseDateKey(fromDateKey) ?? toDateOnly(new Date());
+    const postponeDate = parseDateKey(fromDateKey) ?? toDateOnly(getLogicalNow());
     appendHistoryEvent({
       action: 'postponed',
       choreSubject: subject,
@@ -324,7 +328,7 @@ export default function useChoreState(): UseChoreStateReturn {
   const completeLateOverdue = (subject: string, fromDate: string) => {
     dirtyRef.current = true;
     const choreForLate = chores.find((c) => c.subject === subject);
-    const overdueDate = parseDateKey(fromDate) ?? toDateOnly(new Date());
+    const overdueDate = parseDateKey(fromDate) ?? toDateOnly(getLogicalNow());
     appendHistoryEvent({
       action: 'completed_late',
       choreSubject: subject,
@@ -346,7 +350,7 @@ export default function useChoreState(): UseChoreStateReturn {
   const abandonOverdue = (subject: string, fromDate: string) => {
     dirtyRef.current = true;
     const choreForAbandon = chores.find((c) => c.subject === subject);
-    const abandonDate = parseDateKey(fromDate) ?? toDateOnly(new Date());
+    const abandonDate = parseDateKey(fromDate) ?? toDateOnly(getLogicalNow());
     appendHistoryEvent({
       action: 'abandoned',
       choreSubject: subject,
@@ -360,7 +364,7 @@ export default function useChoreState(): UseChoreStateReturn {
         if (chore.assignmentType !== 'rotating') return chore;
         const members = Array.isArray(chore.rotation?.members) ? chore.rotation!.members : [];
         if (!members.length) return chore;
-        const overdueDate = parseDateKey(fromDate) ?? toDateOnly(new Date());
+        const overdueDate = parseDateKey(fromDate) ?? toDateOnly(getLogicalNow());
         const currentIndex = getRotationIndex(chore, overdueDate);
         const nextIndex = (currentIndex + 1) % members.length;
         return { ...chore, rotationIndex: nextIndex, rotationIndexPrev: currentIndex };
