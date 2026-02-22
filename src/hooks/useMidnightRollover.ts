@@ -19,38 +19,36 @@ export default function useMidnightRollover(
   }, [autoPostponeUndone]);
 
   useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval> | undefined;
-    const now = new Date();
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    // Next DAY_BOUNDARY_HOUR o'clock — if we're already past it today,
-    // schedule for tomorrow's boundary.
-    const next4am = new Date(now);
-    next4am.setHours(DAY_BOUNDARY_HOUR, 0, 0, 0);
-    if (next4am <= now) {
-      next4am.setDate(next4am.getDate() + 1);
-    }
+    const scheduleNextRollover = () => {
+      const now = new Date();
 
-    // Capture the logical day that is currently "today" (before the rollover).
-    // This is what autoPostponeUndone uses to know which day's chores to carry over.
-    const prevLogicalDay = toDateOnly(getLogicalNow());
+      // Next DAY_BOUNDARY_HOUR o'clock — if we're already past it today,
+      // schedule for tomorrow's boundary.
+      const next4am = new Date(now);
+      next4am.setHours(DAY_BOUNDARY_HOUR, 0, 0, 0);
+      if (next4am <= now) {
+        next4am.setDate(next4am.getDate() + 1);
+      }
 
-    const timeoutId = setTimeout(() => {
-      setCurrentDate(getLogicalNow());
-      autoPostponeRef.current(prevLogicalDay);
+      // Capture the logical day that is currently "today" (before the rollover).
+      // This is what autoPostponeUndone uses to know which day's chores to carry over.
+      const prevLogicalDay = toDateOnly(getLogicalNow());
 
-      intervalId = setInterval(() => {
-        const logicalNow = getLogicalNow();
-        setCurrentDate(logicalNow);
-        // The day that just ended is 24h before the new logical now
-        const justEnded = toDateOnly(new Date(logicalNow.getTime() - 24 * 60 * 60 * 1000));
-        autoPostponeRef.current(justEnded);
-      }, 24 * 60 * 60 * 1000);
-    }, next4am.getTime() - now.getTime());
+      timeoutId = setTimeout(() => {
+        setCurrentDate(getLogicalNow());
+        autoPostponeRef.current(prevLogicalDay);
+        // Schedule the next rollover from wall-clock time to avoid drift
+        scheduleNextRollover();
+      }, next4am.getTime() - now.getTime());
+    };
+
+    scheduleNextRollover();
 
     return () => {
-      clearTimeout(timeoutId);
-      if (intervalId) {
-        clearInterval(intervalId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
     };
   }, []);

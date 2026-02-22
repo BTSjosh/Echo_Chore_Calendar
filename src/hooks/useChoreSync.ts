@@ -184,11 +184,13 @@ export default function useChoreSync(
       return true;
     };
 
-    const doPush = () => {
+    const doPush = async () => {
       lastPushRef.current = Date.now();
       dirtyRef.current = false;
-      savePushIntent();
-      pushSnapshotToSupabase();
+      const success = await pushSnapshotToSupabase();
+      if (success) {
+        savePushIntent();
+      }
     };
 
     const handleVisibilityChange = () => {

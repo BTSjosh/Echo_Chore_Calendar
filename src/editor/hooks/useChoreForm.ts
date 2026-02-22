@@ -12,9 +12,10 @@ import {
 interface UseChoreFormOptions {
   addChore: (def: ChoreDefinition) => void;
   updateChore: (oldSubject: string, def: ChoreDefinition) => void;
+  existingSubjects: string[];
 }
 
-export default function useChoreForm({ addChore, updateChore }: UseChoreFormOptions) {
+export default function useChoreForm({ addChore, updateChore, existingSubjects }: UseChoreFormOptions) {
   const [formValues, setFormValues] = useState<EditorFormState>(getDefaultFormState());
   const [isOpen, setIsOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<string | null>(null);
@@ -83,6 +84,12 @@ export default function useChoreForm({ addChore, updateChore }: UseChoreFormOpti
     const subject = formValues.subject.trim();
     if (!subject) return 'Subject is required';
 
+    const isNew = !editingSubject;
+    const isRename = editingSubject && editingSubject !== subject;
+    if ((isNew || isRename) && existingSubjects.includes(subject)) {
+      return 'A chore with this name already exists';
+    }
+
     if (formValues.assignmentType === 'fixed' && formValues.fixedMembers.length === 0) {
       return 'Select at least one member';
     }
@@ -91,10 +98,7 @@ export default function useChoreForm({ addChore, updateChore }: UseChoreFormOpti
       return 'Rotation requires at least 2 members';
     }
 
-    const def = formStateToChoreDefinition(
-      formValues,
-      editingSubject ? undefined : undefined
-    );
+    const def = formStateToChoreDefinition(formValues);
 
     if (editingSubject) {
       if (editingSubject !== def.subject) {
@@ -110,7 +114,7 @@ export default function useChoreForm({ addChore, updateChore }: UseChoreFormOpti
 
     closeForm();
     return null;
-  }, [formValues, editingSubject, addChore, updateChore, closeForm]);
+  }, [formValues, editingSubject, existingSubjects, addChore, updateChore, closeForm]);
 
   return {
     formValues,

@@ -22,6 +22,13 @@ export default function useChoreEditorState() {
     saveChoreDefinitions(nextChores);
   }, []);
 
+  // Push to Supabase after a local change, setting the push intent only on success.
+  const pushAfterEdit = () => {
+    pushSnapshotToSupabase().then((ok) => {
+      if (ok) savePushIntent();
+    });
+  };
+
   const addChore = useCallback((def: ChoreDefinition) => {
     setChores((prev) => {
       const { nextDue: _nd, nextDueDate: _ndd, ...rest } = def;
@@ -32,13 +39,10 @@ export default function useChoreEditorState() {
       } as Chore;
       const next = [...prev, newChore];
       persistDefinitions(next);
-      // Push so other devices (Echo Show) see the new chore immediately.
-      // savePushIntent guards processRemoteData from overwriting local defs with a
-      // stale remote snapshot before this push lands in Supabase.
-      savePushIntent();
-      void pushSnapshotToSupabase();
       return next;
     });
+    // Push so other devices (Echo Show) see the new chore immediately.
+    pushAfterEdit();
   }, [persistDefinitions]);
 
   const updateChore = useCallback((
@@ -72,20 +76,18 @@ export default function useChoreEditorState() {
         migrateHistorySubject(oldSubject, def.subject);
       }
 
-      savePushIntent();
-      void pushSnapshotToSupabase();
       return next;
     });
+    pushAfterEdit();
   }, [persistDefinitions]);
 
   const deleteChore = useCallback((subject: string) => {
     setChores((prev) => {
       const next = prev.filter((c) => c.subject !== subject);
       persistDefinitions(next);
-      savePushIntent();
-      void pushSnapshotToSupabase();
       return next;
     });
+    pushAfterEdit();
   }, [persistDefinitions]);
 
   return { chores, addChore, updateChore, deleteChore };

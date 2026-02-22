@@ -70,6 +70,11 @@ export default function useChoreState(): UseChoreStateReturn {
     return applyProgress(normalized, storedProgress);
   });
 
+  // Keep a ref to the latest chores so callbacks can read current state
+  // without nesting state setters or relying on stale closures.
+  const choresRef = useRef(chores);
+  choresRef.current = chores;
+
   const [postponedOverrides, setPostponedOverrides] = useState<PostponeEntry[]>(
     () => loadPostpones()
   );
@@ -258,7 +263,14 @@ export default function useChoreState(): UseChoreStateReturn {
     // processed it). Preserve local progress/postpones and only apply definitions.
     const pushIntent = loadPushIntent();
     const remoteTime = updated_at ? new Date(updated_at).getTime() : 0;
-    const localIsNewer = pushIntent > 0 && pushIntent > remoteTime;
+    // Ignore push intents older than 5 minutes — they likely represent failed
+    // pushes (e.g. network error on beforeunload) that will never land.
+    const PUSH_INTENT_TTL_MS = 5 * 60 * 1000;
+    const intentIsStale = pushIntent > 0 && (Date.now() - pushIntent) > PUSH_INTENT_TTL_MS;
+    if (intentIsStale) {
+      clearPushIntent();
+    }
+    const localIsNewer = !intentIsStale && pushIntent > 0 && pushIntent > remoteTime;
 
     const remoteDefinitions = extractRemoteChores(payload);
     const baseChores = (remoteDefinitions ?? SEED_CHORES) as RawImportedChore[];
@@ -383,42 +395,39 @@ export default function useChoreState(): UseChoreStateReturn {
     tomorrow.setDate(todayNorm.getDate() + 1);
     const tomorrowKey = getDateKey(tomorrow);
 
-    setChores((prevChores) => {
-      const undoneChores = prevChores.filter(
-        (chore) =>
-          isDueOnDate(chore, todayNorm) &&
-          !isChoreComplete(chore, getAssignedMembers(chore, todayNorm), todayNorm)
-      );
+    const currentChores = choresRef.current;
+    const undoneChores = currentChores.filter(
+      (chore) =>
+        isDueOnDate(chore, todayNorm) &&
+        !isChoreComplete(chore, getAssignedMembers(chore, todayNorm), todayNorm)
+    );
 
-      if (undoneChores.length > 0) {
-        setPostponedOverrides((prevOverrides) => {
-          const newOverrides = [...prevOverrides];
-          undoneChores.forEach((chore) => {
-            const { subject } = chore;
-            const alreadyExists = prevOverrides.some(
-              (override) =>
-                override.subject === subject &&
-                override.fromDate === todayKey &&
-                override.toDate === tomorrowKey
-            );
-            if (!alreadyExists) {
-              newOverrides.push({ subject, fromDate: todayKey, toDate: tomorrowKey });
-              appendHistoryEvent({
-                action: 'auto_postponed',
-                choreSubject: subject,
-                members: getAssignedMembers(chore, todayNorm),
-                dueDate: todayKey,
-                postponedTo: tomorrowKey,
-              });
-            }
-          });
-          savePostpones(newOverrides);
-          return newOverrides;
+    if (undoneChores.length > 0) {
+      setPostponedOverrides((prevOverrides) => {
+        const newOverrides = [...prevOverrides];
+        undoneChores.forEach((chore) => {
+          const { subject } = chore;
+          const alreadyExists = prevOverrides.some(
+            (override) =>
+              override.subject === subject &&
+              override.fromDate === todayKey &&
+              override.toDate === tomorrowKey
+          );
+          if (!alreadyExists) {
+            newOverrides.push({ subject, fromDate: todayKey, toDate: tomorrowKey });
+            appendHistoryEvent({
+              action: 'auto_postponed',
+              choreSubject: subject,
+              members: getAssignedMembers(chore, todayNorm),
+              dueDate: todayKey,
+              postponedTo: tomorrowKey,
+            });
+          }
         });
-      }
-
-      return prevChores;
-    });
+        savePostpones(newOverrides);
+        return newOverrides;
+      });
+    }
   };
 
   return {

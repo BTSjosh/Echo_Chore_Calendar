@@ -24,6 +24,13 @@ export const saveHistory = (events: HistoryEvent[]): void => {
   }
 };
 
+const RETENTION_MS = 6 * 30 * 24 * 60 * 60 * 1000; // ~6 months
+
+export const pruneHistory = (events: HistoryEvent[]): HistoryEvent[] => {
+  const cutoff = new Date(Date.now() - RETENTION_MS).toISOString();
+  return events.filter((e) => e.timestamp >= cutoff);
+};
+
 export const appendHistoryEvent = (
   event: Omit<HistoryEvent, 'id' | 'timestamp'>
 ): void => {
@@ -34,7 +41,7 @@ export const appendHistoryEvent = (
   };
   const history = loadHistory();
   history.push(full);
-  saveHistory(history);
+  saveHistory(pruneHistory(history));
 };
 
 const escapeCsvField = (value: string): string => {
@@ -237,5 +244,5 @@ export const mergeHistory = (
     }
   }
   merged.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-  return merged;
+  return pruneHistory(merged);
 };

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { loadHistory } from './utils/history';
 import { HOUSEHOLD } from './utils/chores';
 import {
@@ -407,12 +407,11 @@ function PunctualitySection({ data }: { data: PunctualityStat[] }) {
 export default function SummaryDashboard() {
   const [period, setPeriod] = useState<Period>('week');
 
-  const history = useMemo(() => loadHistory(), []);
+  // Load history fresh on each mount so navigating to /stats always reflects
+  // the latest completions without requiring a full page refresh.
+  const [history] = useState(() => loadHistory());
 
-  const analytics = useMemo(
-    () => computeAnalytics(history, period, HOUSEHOLD),
-    [history, period],
-  );
+  const analytics = computeAnalytics(history, period, HOUSEHOLD);
 
   return (
     <div className="min-h-screen bg-[#121212] text-slate-100 print:bg-white print:text-slate-900">

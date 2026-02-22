@@ -66,7 +66,10 @@ export const normalizeRecurrence = (chore: RawImportedChore): Recurrence => {
 };
 
 export const normalizeRotationCycleType = (chore: RawImportedChore): string => {
-  const raw = String(chore.recurrence ?? "").toLowerCase();
+  const recurrenceValue = typeof chore.recurrence === 'object' && chore.recurrence !== null
+    ? (chore.recurrence as Record<string, unknown>).frequency ?? (chore.recurrence as Record<string, unknown>).recurrence ?? ""
+    : chore.recurrence;
+  const raw = String(recurrenceValue ?? chore.schedule?.recurrence ?? chore.schedule?.frequency ?? "").toLowerCase();
   if (raw.startsWith("daily") && Number(chore.recurrenceInterval) > 1) {
     return "every-x-days";
   }
@@ -246,8 +249,8 @@ export const isDueOnDate = (chore: Chore, date: Date): boolean => {
   if (freq === "weekly") {
     if (target.getDay() !== (rec.dayOfWeek ?? 0)) return false;
     if (!startDate) return true;
-    const weeksDiff = Math.floor((target.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * interval));
-    return weeksDiff % 1 === 0;
+    const weeksDiff = Math.floor((target.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
+    return weeksDiff % interval === 0;
   }
   if (freq === "monthly") {
     if (target.getDate() !== (rec.dayOfMonth ?? 1)) return false;
@@ -362,7 +365,8 @@ export const isDueInRange = (chore: Chore, start: Date, end: Date): boolean => {
   const interval = rec.interval || 1;
 
   if (freq === "daily") {
-    return true;
+    if (interval <= 1) return true;
+    return getDueDatesInRange(chore, start, end).length > 0;
   }
 
   if (freq === "once") {

@@ -26,7 +26,8 @@ export default function ChoreEditor() {
     [chores]
   );
 
-  const form = useChoreForm({ addChore, updateChore });
+  const existingSubjects = useMemo(() => chores.map((c) => c.subject), [chores]);
+  const form = useChoreForm({ addChore, updateChore, existingSubjects });
 
   return (
     <div className="min-h-screen bg-[#121212] text-slate-100">
