@@ -6,15 +6,22 @@
     <title>Chore Calendar • Launching...</title>
     <link rel="manifest" href="/Echo_Chore_Calendar/manifest.json">
     <meta name="theme-color" content="#121212">
-    <!-- Fallback: meta redirect if JS is blocked -->
+    
+    <!-- Fallback meta redirect -->
     <meta http-equiv="refresh" content="0; url=https://btsjosh.github.io/Echo_Chore_Calendar/">
+    
     <script>
-        // Redirect from inside Silk so the browser engine is already warm.
-        // Cache-bust via ts so Silk doesn't serve a stale version of the main app.
-        window.location.replace(
-            'https://btsjosh.github.io/Echo_Chore_Calendar/?ts=' + Date.now()
-        );
+        // Triple-redundant redirect (best chance Silk actually follows it)
+        const target = 'https://btsjosh.github.io/Echo_Chore_Calendar/?ts=' + Date.now();
+        window.location.replace(target);
+        
+        // Keep-alive script — prevents Silk from closing the tab
+        setInterval(() => {
+            fetch('https://www.amazon.com/favicon.ico?' + Date.now())
+                .catch(() => {});
+        }, 240000); // every 4 minutes
     </script>
+    
     <style>
         body {
             margin: 0;

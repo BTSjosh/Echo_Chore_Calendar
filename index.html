@@ -19,5 +19,14 @@
         navigator.serviceWorker.register('./sw.js', { scope: './' });
       }
     </script>
+
+    <!-- KEEP-ALIVE SCRIPT - Prevents Silk from closing the tab on Echo Show 15 -->
+    <script>
+      setInterval(() => {
+        fetch('https://www.amazon.com/favicon.ico?' + Date.now())
+          .catch(() => {});
+      }, 240000); // every 4 minutes
+    </script>
+
   </body>
 </html>
