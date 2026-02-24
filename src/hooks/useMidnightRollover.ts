@@ -18,6 +18,14 @@ export default function useMidnightRollover(
     autoPostponeRef.current = autoPostponeUndone;
   }, [autoPostponeUndone]);
 
+  // Mirror currentDate into a ref so the missed-rollover check always sees
+  // the latest value without needing it as a dependency (avoids stale closures).
+  const currentDateRef = useRef(currentDate);
+  useEffect(() => {
+    currentDateRef.current = currentDate;
+  }, [currentDate]);
+
+  // Primary mechanism: scheduled setTimeout that fires exactly at 4am.
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
@@ -50,6 +58,40 @@ export default function useMidnightRollover(
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
+    };
+  }, []);
+
+  // Fallback: catch missed rollovers caused by the browser suspending JS timers
+  // (e.g. Echo Show Silk entering deep-sleep mode overnight). Checks every 5 minutes
+  // and immediately when the page becomes visible again. If the logical day has
+  // advanced past currentDate, fires the same rollover logic as the primary path.
+  useEffect(() => {
+    const checkForMissedRollover = () => {
+      const logicalNow = getLogicalNow();
+      const prevDate = toDateOnly(currentDateRef.current);
+      const nowDate = toDateOnly(logicalNow);
+
+      if (nowDate > prevDate) {
+        // Update the ref immediately to prevent double-firing if both
+        // visibilitychange and the interval happen to fire close together.
+        currentDateRef.current = logicalNow;
+        setCurrentDate(logicalNow);
+        autoPostponeRef.current(prevDate);
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        checkForMissedRollover();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    const intervalId = setInterval(checkForMissedRollover, 5 * 60 * 1000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(intervalId);
     };
   }, []);
 
