@@ -24,13 +24,13 @@ export default function AssigneePickerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
-      <div className="w-full max-w-md rounded-3xl bg-[#353E43] p-10 shadow-xl shadow-black/30 border border-green-500/20">
+      <div className="w-full max-w-md rounded-3xl bg-[#353E43] p-6 sm:p-10 shadow-xl shadow-black/30 border border-green-500/20">
         <div className="flex items-start justify-between gap-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.32em] text-slate-200">
               Done by
             </p>
-            <h3 className="mt-3 text-3xl font-semibold text-slate-100">
+            <h3 className="mt-3 text-xl sm:text-3xl font-semibold text-slate-100">
               Select completed names
             </h3>
           </div>

@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <script>
+      // Detect Silk (Echo Show) and add class to enable device-specific styles.
+      // On non-Silk devices, also relax the viewport to allow pinch-to-zoom.
+      (function () {
+        var isSilk = navigator.userAgent.toLowerCase().includes('silk');
+        if (isSilk) {
+          document.documentElement.classList.add('is-silk');
+        } else {
+          var vp = document.querySelector('meta[name="viewport"]');
+          if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1.0, viewport-fit=cover');
+        }
+      })();
+    </script>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />

@@ -307,22 +307,22 @@ function ChoreApp() {
       <div className="mx-auto w-full px-6 py-8 2xl:px-12">
           <main className="w-full min-h-0" style={{ minHeight: 'calc(100dvh - 4rem)', paddingBottom: '8rem', WebkitOverflowScrolling: 'touch', overflow: 'auto' }}>
             <header className="mb-8 flex flex-col gap-5 sticky top-0 z-30 bg-[#121212] bg-opacity-95 backdrop-blur-md" style={{ WebkitBackdropFilter: 'blur(8px)' }}>
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div>
-              <h1 className="text-5xl sm:text-6xl font-semibold text-slate-100">
+              <h1 className="text-3xl sm:text-5xl font-semibold text-slate-100">
                 Plimmer Chore Dashboard
               </h1>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
               <a
                 href="#/stats"
-                className="flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-6 py-2.5 text-lg font-semibold min-w-[9rem] text-slate-100 hover:bg-slate-800 hover:border-slate-600 shadow transition"
+                className="flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 sm:px-6 sm:py-2.5 text-sm sm:text-lg font-semibold sm:min-w-[9rem] text-slate-100 hover:bg-slate-800 hover:border-slate-600 shadow transition"
               >
                 Stats
               </a>
               <a
                 href="#/admin"
-                className="flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-6 py-2.5 text-lg font-semibold min-w-[9rem] text-slate-100 hover:bg-slate-800 hover:border-slate-600 shadow transition"
+                className="flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 sm:px-6 sm:py-2.5 text-sm sm:text-lg font-semibold sm:min-w-[9rem] text-slate-100 hover:bg-slate-800 hover:border-slate-600 shadow transition"
               >
                 Settings
               </a>
@@ -330,7 +330,7 @@ function ChoreApp() {
                 type="button"
                 onClick={handleReloadData}
                 disabled={isReloading}
-                className="flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-6 py-2.5 text-lg font-semibold min-w-[9rem] text-slate-100 hover:bg-slate-800 hover:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed shadow transition"
+                className="flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 sm:px-6 sm:py-2.5 text-sm sm:text-lg font-semibold sm:min-w-[9rem] text-slate-100 hover:bg-slate-800 hover:border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed shadow transition"
                 title="Refresh chores from cloud"
               >
                 {isReloading ? '\u21BB Refreshing...' : '\u21BB Refresh'}
@@ -347,7 +347,7 @@ function ChoreApp() {
                   type="button"
                   onClick={() => setActiveTab(tab)}
                   className={
-                    "rounded-full px-6 py-2.5 text-lg font-semibold transition " +
+                    "rounded-full px-4 py-2 sm:px-6 sm:py-2.5 text-sm sm:text-lg font-semibold transition " +
                     (isActive
                       ? "bg-green-500 text-slate-950 shadow"
                       : "bg-[#353E43] text-slate-200 shadow-sm hover:bg-slate-800")
@@ -368,7 +368,7 @@ function ChoreApp() {
                   type="button"
                   onClick={() => setSelectedMember(member)}
                   className={
-                    "rounded-full px-6 py-2.5 text-lg font-semibold transition min-w-[11rem] " +
+                    "rounded-full px-4 py-2 sm:px-6 sm:py-2.5 text-sm sm:text-lg font-semibold transition min-w-[5rem] sm:min-w-[11rem] " +
                     (isActive
                       ? "bg-green-500 text-slate-950 shadow"
                       : "bg-[#353E43] text-slate-200 shadow-sm hover:bg-slate-800")
@@ -476,7 +476,7 @@ function ChoreApp() {
     {toast && (
       <div
         className={
-          "fixed bottom-10 left-1/2 -translate-x-1/2 z-50 px-10 py-5 rounded-2xl text-3xl font-bold shadow-2xl pointer-events-none " +
+          "fixed bottom-10 left-1/2 -translate-x-1/2 z-50 px-6 py-3 sm:px-10 sm:py-5 rounded-2xl text-xl sm:text-3xl font-bold shadow-2xl pointer-events-none " +
           (toast.variant === 'done'
             ? "bg-green-500 text-slate-950"
             : toast.variant === 'abandoned'

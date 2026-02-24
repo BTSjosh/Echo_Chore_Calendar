@@ -9,3 +9,16 @@
 		@apply bg-green-500 text-slate-950;
 	}
 }
+
+/* Echo Show (Silk) viewport compensation.
+   Applied only when the UA is detected as Silk (see index.html).
+   On all other devices these are no-ops so text renders normally. */
+.is-silk .silk-expand-125 {
+	transform: scaleX(1.25);
+	transform-origin: left;
+}
+
+.is-silk .silk-expand-110 {
+	transform: scaleX(1.1);
+	transform-origin: left;
+}

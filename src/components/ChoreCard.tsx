@@ -74,7 +74,7 @@ export default function ChoreCard({
             }
           }}
         >
-          <h2 className="text-2xl lg:text-3xl font-semibold text-slate-100 scale-x-125 origin-left">
+          <h2 className="text-2xl lg:text-3xl font-semibold text-slate-100 silk-expand-125">
             {chore.subject}
             {isOverdue && (
               <span className="ml-3 text-sm font-bold uppercase tracking-wider text-red-400">OVERDUE</span>
@@ -85,15 +85,15 @@ export default function ChoreCard({
               {chore.description}
             </p>
           )}
-          <p className="mt-2 text-lg font-bold text-slate-100 scale-x-110 origin-left">
+          <p className="mt-2 text-lg font-bold text-slate-100 silk-expand-110">
             Assigned:{" "}
             {assignedList.map((member, index) => (
               <span
                 key={member}
                 className={
                   completedBy.includes(member)
-                    ? "line-through text-slate-500 scale-x-110 origin-left"
-                    : "text-slate-100 scale-x-110 origin-left"
+                    ? "line-through text-slate-500 silk-expand-110"
+                    : "text-slate-100 silk-expand-110"
                 }
               >
                 {member}
@@ -101,7 +101,7 @@ export default function ChoreCard({
               </span>
             ))}
           </p>
-          <p className={"mt-2 text-[0.7rem] uppercase tracking-[0.2em] scale-x-125 origin-left " + (originalDueDate ? "text-red-400 font-semibold" : "text-slate-200")}>
+          <p className={"mt-2 text-[0.7rem] uppercase tracking-[0.2em] silk-expand-125 " + (originalDueDate ? "text-red-400 font-semibold" : "text-slate-200")}>
             {originalDueDate
               ? `Originally due ${new Date(originalDueDate + 'T00:00:00').toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}`
               : getNextDueDate(chore, currentDate).toLocaleDateString("en-US", {
@@ -113,7 +113,7 @@ export default function ChoreCard({
         </div>
 
         {/* Buttons area — no parent click handler, so taps always hit the button */}
-        <div className="flex flex-wrap items-center gap-6 self-center">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-6 self-center">
           {isOverdue ? (
             showConfirm ? (
               <div className="flex flex-col items-center gap-3">
@@ -164,21 +164,21 @@ export default function ChoreCard({
                 <button
                   type="button"
                   onClick={() => setShowConfirm(true)}
-                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[11rem] text-center transition-all duration-150"
+                  className="rounded-full border border-green-500/40 bg-[#353E43] px-4 py-3 sm:px-8 sm:py-5 text-sm sm:text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[7rem] sm:min-w-[11rem] text-center transition-all duration-150"
                 >
                   Mark Done
                 </button>
                 <button
                   type="button"
                   onClick={() => onOpenPostponeSelector(chore.subject, originalDueDate)}
-                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[11rem] text-center transition-all duration-150"
+                  className="rounded-full border border-green-500/40 bg-[#353E43] px-4 py-3 sm:px-8 sm:py-5 text-sm sm:text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[7rem] sm:min-w-[11rem] text-center transition-all duration-150"
                 >
                   Postpone
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowAbandonConfirm(true)}
-                  className="rounded-full border border-red-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-red-300 hover:bg-[#4a555c] hover:border-red-400 active:scale-95 min-w-[11rem] text-center transition-all duration-150"
+                  className="rounded-full border border-red-500/40 bg-[#353E43] px-4 py-3 sm:px-8 sm:py-5 text-sm sm:text-lg font-semibold text-red-300 hover:bg-[#4a555c] hover:border-red-400 active:scale-95 min-w-[7rem] sm:min-w-[11rem] text-center transition-all duration-150"
                 >
                   Abandon
                 </button>
@@ -190,7 +190,7 @@ export default function ChoreCard({
                 <button
                   type="button"
                   onClick={() => onOpenPostponeSelector(chore.subject)}
-                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[11rem] text-center transition-all duration-150"
+                  className="rounded-full border border-green-500/40 bg-[#353E43] px-4 py-3 sm:px-8 sm:py-5 text-sm sm:text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[7rem] sm:min-w-[11rem] text-center transition-all duration-150"
                   style={{ marginRight: '0.5rem' }}
                 >
                   Postpone
@@ -200,7 +200,7 @@ export default function ChoreCard({
                 <button
                   type="button"
                   onClick={() => onOpenAssigneePicker(chore.subject)}
-                  className="rounded-full border border-green-500/40 bg-[#353E43] px-8 py-5 text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[11rem] text-center transition-all duration-150"
+                  className="rounded-full border border-green-500/40 bg-[#353E43] px-4 py-3 sm:px-8 sm:py-5 text-sm sm:text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[7rem] sm:min-w-[11rem] text-center transition-all duration-150"
                 >
                   Mark Done
                 </button>
@@ -209,7 +209,7 @@ export default function ChoreCard({
                   type="button"
                   onClick={() => onToggleCompleted(chore.subject)}
                   className={
-                    "rounded-full border px-8 py-5 text-base font-semibold transition-all duration-150 min-w-[11rem] text-center active:scale-95 " +
+                    "rounded-full border px-4 py-3 sm:px-8 sm:py-5 text-xs sm:text-base font-semibold transition-all duration-150 min-w-[7rem] sm:min-w-[11rem] text-center active:scale-95 " +
                     (complete
                       ? "border-green-400 bg-green-500/20 text-[#a7f3d0]"
                       : "border-green-500/40 bg-[#353E43] text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400")

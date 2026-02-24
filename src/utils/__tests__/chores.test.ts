@@ -331,6 +331,7 @@ describe('getAssignedMembers', () => {
       rotationIndex: 1,
       rotation: { members: ['Alice', 'Bob', 'Charlie'], group: 'A', cycleLength: 1, cycleType: 'weekly', everyDays: 1 },
       completed: true,
+      completedThrough: '2025-06-16',
     });
     expect(getAssignedMembers(chore, d(2025, 6, 15))).toEqual(['Alice']);
   });
@@ -342,6 +343,7 @@ describe('getAssignedMembers', () => {
       rotationIndexPrev: 0,
       rotation: { members: ['Alice', 'Bob', 'Charlie'], group: 'A', cycleLength: 1, cycleType: 'weekly', everyDays: 1 },
       completed: true,
+      completedThrough: '2025-06-16',
     });
     expect(getAssignedMembers(chore, d(2025, 6, 15))).toEqual(['Alice']);
   });
@@ -354,18 +356,18 @@ describe('isCompletionActive', () => {
     expect(isCompletionActive(baseChore({ completed: false }), d(2025, 6, 15))).toBe(false);
   });
 
-  it('returns true for completed fixed chore', () => {
+  it('returns true for completed fixed chore with completedThrough', () => {
     expect(isCompletionActive(
-      baseChore({ completed: true, assignmentType: 'fixed' }),
+      baseChore({ completed: true, assignmentType: 'fixed', completedThrough: '2025-06-16' }),
       d(2025, 6, 15),
     )).toBe(true);
   });
 
-  it('returns true for rotating chore completed with no lastCompletedDate', () => {
+  it('returns false for completed chore with no completedThrough or lastCompletedDate', () => {
     expect(isCompletionActive(
       baseChore({ completed: true, assignmentType: 'rotating' }),
       d(2025, 6, 15),
-    )).toBe(true);
+    )).toBe(false);
   });
 
   it('returns false for rotating chore after next due date', () => {
@@ -381,8 +383,8 @@ describe('isCompletionActive', () => {
 });
 
 describe('isChoreComplete', () => {
-  it('fixed chore with completed=true is complete', () => {
-    const chore = baseChore({ completed: true, assignmentType: 'fixed', assigned: ['Alice'] });
+  it('fixed chore with completed=true and completedThrough is complete', () => {
+    const chore = baseChore({ completed: true, assignmentType: 'fixed', assigned: ['Alice'], completedThrough: '2025-06-16' });
     expect(isChoreComplete(chore, undefined, d(2025, 6, 15))).toBe(true);
   });
 
