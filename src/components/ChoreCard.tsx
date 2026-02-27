@@ -49,7 +49,12 @@ export default function ChoreCard({
       : activeTab === "Tomorrow"
       ? new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() + 1)
       : currentDate;
-  const assignedList = isOverdue && overdueAssignees ? overdueAssignees : getAssignedMembers(chore, effectiveDate);
+  // Yesterday and Tomorrow are display-only: use the scheduled rotation for that
+  // date rather than the live "who's currently responsible" rotation state.
+  const useScheduled = activeTab === 'Yesterday' || activeTab === 'Tomorrow';
+  const assignedList = isOverdue && overdueAssignees
+    ? overdueAssignees
+    : getAssignedMembers(chore, effectiveDate, { useScheduled });
   const completedBy = getCompletedBy(chore, assignedList);
   const complete = isChoreComplete(chore, assignedList, effectiveDate);
 

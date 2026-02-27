@@ -124,9 +124,8 @@ function ChoreApp() {
 
     const isDueYesterday = (chore: Chore) => {
       const yesterdayKey = getDateKey(yesterday);
-      if (isPostponedFrom(chore.subject, yesterdayKey)) {
-        return false;
-      }
+      // Don't filter out chores that were postponed from yesterday — Yesterday
+      // should show what was scheduled that day, even if not done (overdue).
       if (isOverrideDueOn(chore.subject, yesterdayKey)) {
         return true;
       }
@@ -160,14 +159,11 @@ function ChoreApp() {
           ? overdueOverrides.reduce((earliest, o) => o.fromDate < earliest.fromDate ? o : earliest)
           : null;
 
-        const todayAssignees = getAssignedMembers(chore, today);
-        let overdueIsSamePerson = false;
-
         if (earliestOverdue) {
           const originalDate = parseDateKey(earliestOverdue.fromDate);
           const overdueAssignees = originalDate
             ? getAssignedMembers(chore, originalDate)
-            : todayAssignees;
+            : getAssignedMembers(chore, today);
           // Skip stale overdue card: chore was actually completed for that original date
           // (e.g. Echo Show marked it done before PC's midnight rollover created the override).
           const isStaleOverride = originalDate && isCompletionActive(chore, originalDate);
@@ -178,20 +174,14 @@ function ChoreApp() {
               _originalDueDate: earliestOverdue.fromDate,
               _overdueAssignees: overdueAssignees,
             });
-            // If overdue card is for the same person as today's assignment,
-            // suppress the normal card — it's a duplicate (e.g. fixed daily chore).
-            // If it's a different person (rotating chore), show both cards.
-            overdueIsSamePerson =
-              overdueAssignees.length === todayAssignees.length &&
-              overdueAssignees.every((m) => todayAssignees.includes(m));
           }
         }
 
-        // Show the normal card unless: postponed away from today, or overdue card
-        // already covers the same person's instance for today.
+        // Show the normal card unless postponed away from today.
+        // Always show alongside any overdue card so today's instance is visible
+        // regardless of whether a prior day's overdue is pending.
         const normallyDueToday = isDueOnDate(chore, today)
-          && !isPostponedFrom(chore.subject, todayKey)
-          && !overdueIsSamePerson;
+          && !isPostponedFrom(chore.subject, todayKey);
         if (normallyDueToday) {
           filtered.push({
             ...chore,
@@ -215,12 +205,16 @@ function ChoreApp() {
       filtered = chores;
     }
 
+    // Yesterday and Tomorrow are display-only — use scheduled rotation for those tabs
+    // so member filter and sort match what's shown on the cards.
+    const useScheduled = activeTab === 'Yesterday' || activeTab === 'Tomorrow';
+
     if (selectedMember !== "All") {
       filtered = filtered.filter((chore) => {
         if (chore._instanceType === 'overdue' && chore._overdueAssignees) {
           return chore._overdueAssignees.includes(selectedMember);
         }
-        const assignedList = getAssignedMembers(chore, viewDate);
+        const assignedList = getAssignedMembers(chore, viewDate, { useScheduled });
         if (!assignedList.includes(selectedMember)) return false;
         // Hide chores where this member has already completed their part —
         // once their name is crossed off it shouldn't clutter their personal view.
@@ -233,8 +227,8 @@ function ChoreApp() {
       // Overdue cards always sort before normal cards
       if (a._instanceType === 'overdue' && b._instanceType !== 'overdue') return -1;
       if (a._instanceType !== 'overdue' && b._instanceType === 'overdue') return 1;
-      const aDone = isChoreComplete(a, getAssignedMembers(a, viewDate), viewDate);
-      const bDone = isChoreComplete(b, getAssignedMembers(b, viewDate), viewDate);
+      const aDone = isChoreComplete(a, getAssignedMembers(a, viewDate, { useScheduled }), viewDate);
+      const bDone = isChoreComplete(b, getAssignedMembers(b, viewDate, { useScheduled }), viewDate);
       if (aDone === bDone) return 0;
       return aDone ? 1 : -1;
     });

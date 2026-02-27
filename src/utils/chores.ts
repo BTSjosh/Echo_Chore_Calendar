@@ -409,22 +409,24 @@ export const isDueInRange = (chore: Chore, start: Date, end: Date): boolean => {
   return true;
 };
 
-export const getRotationIndex = (chore: Chore, date: Date): number => {
+export const getRotationIndex = (chore: Chore, date: Date, options?: { ignoreStored?: boolean }): number => {
   const rotation = chore.rotation;
   const members = Array.isArray(rotation?.members) ? rotation!.members : [];
   if (!members.length) return 0;
 
-  const storedIndex =
-    Number.isFinite(chore.rotationIndex)
-      ? chore.rotationIndex!
-      : Number.isFinite(chore.rotationPosition)
-      ? chore.rotationPosition!
-      : Number.isFinite(chore.rotationCursor)
-      ? chore.rotationCursor!
-      : null;
+  if (!options?.ignoreStored) {
+    const storedIndex =
+      Number.isFinite(chore.rotationIndex)
+        ? chore.rotationIndex!
+        : Number.isFinite(chore.rotationPosition)
+        ? chore.rotationPosition!
+        : Number.isFinite(chore.rotationCursor)
+        ? chore.rotationCursor!
+        : null;
 
-  if (storedIndex !== null) {
-    return ((storedIndex % members.length) + members.length) % members.length;
+    if (storedIndex !== null) {
+      return ((storedIndex % members.length) + members.length) % members.length;
+    }
   }
 
   const baseDate =
@@ -499,7 +501,7 @@ export const isChoreComplete = (chore: Chore, assignedOverride: string[] | undef
   return isCompletionActive(chore, date);
 };
 
-export const getAssignedMembers = (chore: Chore, date: Date): string[] => {
+export const getAssignedMembers = (chore: Chore, date: Date, options?: { useScheduled?: boolean }): string[] => {
   if (chore.assignmentType !== "rotating") {
     return Array.isArray(chore.assigned) ? chore.assigned : [];
   }
@@ -508,9 +510,13 @@ export const getAssignedMembers = (chore: Chore, date: Date): string[] => {
   const members = Array.isArray(rotation?.members) ? rotation!.members : [];
   if (!members.length) return [];
 
-  const index = getRotationIndex(chore, date);
+  // useScheduled=true: use pure date-based rotation for display-only contexts
+  // (Yesterday / Tomorrow tabs). Ignores the stored rotation index so those tabs
+  // always show who is/was scheduled for that day rather than who is currently
+  // responsible according to the live rotation state.
+  const index = getRotationIndex(chore, date, { ignoreStored: options?.useScheduled });
 
-  if (isCompletionActive(chore, date)) {
+  if (!options?.useScheduled && isCompletionActive(chore, date)) {
     if (Number.isFinite(chore.rotationIndexPrev)) {
       return [members[chore.rotationIndexPrev!]];
     }
