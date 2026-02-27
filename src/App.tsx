@@ -219,9 +219,11 @@ function ChoreApp() {
       filtered = chores;
     }
 
-    // Yesterday and Tomorrow are display-only — use scheduled rotation for those tabs
-    // so member filter and sort match what's shown on the cards.
-    const useScheduled = activeTab === 'Yesterday' || activeTab === 'Tomorrow';
+    // Tomorrow is display-only — use scheduled rotation so it shows who is next
+    // in the rotation, not the current (possibly overdue) person. Yesterday uses
+    // stored rotation state since isCompletionActive + rotationIndexPrev correctly
+    // resolves who was assigned/completed that day.
+    const useScheduled = activeTab === 'Tomorrow';
 
     if (selectedMember !== "All") {
       filtered = filtered.filter((chore) => {
