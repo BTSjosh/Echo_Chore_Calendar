@@ -388,14 +388,25 @@ export default function useChoreState(): UseChoreStateReturn {
   };
 
   const autoPostponeUndone = (today: Date) => {
-    dirtyRef.current = true;
+    // NOTE: We intentionally do NOT set dirtyRef here. Auto-postpone overrides
+    // are local-display-only until the next processRemoteData (which sets
+    // dirtyRef and triggers a push). This prevents the critical race condition
+    // where a device with stale local state pushes stale overrides to Supabase,
+    // overwriting completions made on another device.
     const todayNorm = toDateOnly(today);
     const todayKey = getDateKey(todayNorm);
     const tomorrow = new Date(todayNorm);
     tomorrow.setDate(todayNorm.getDate() + 1);
     const tomorrowKey = getDateKey(tomorrow);
 
-    const currentChores = choresRef.current;
+    // Read fresh from localStorage instead of choresRef.current so that a
+    // just-completed processRemoteData (which writes to localStorage
+    // synchronously) is reflected here, even if React hasn't re-rendered yet.
+    const storedProgress = loadFromLocalStorage();
+    const storedDefinitions = loadChoreDefinitions();
+    const baseChores = (storedDefinitions ?? SEED_CHORES) as RawImportedChore[];
+    const currentChores = applyProgress(buildInitialChores(baseChores), storedProgress);
+
     const undoneChores = currentChores.filter(
       (chore) =>
         isDueOnDate(chore, todayNorm) &&
@@ -405,6 +416,7 @@ export default function useChoreState(): UseChoreStateReturn {
     if (undoneChores.length > 0) {
       setPostponedOverrides((prevOverrides) => {
         const newOverrides = [...prevOverrides];
+        let addedAny = false;
         undoneChores.forEach((chore) => {
           const { subject } = chore;
           const alreadyExists = prevOverrides.some(
@@ -414,6 +426,7 @@ export default function useChoreState(): UseChoreStateReturn {
               override.toDate === tomorrowKey
           );
           if (!alreadyExists) {
+            addedAny = true;
             newOverrides.push({ subject, fromDate: todayKey, toDate: tomorrowKey });
             appendHistoryEvent({
               action: 'auto_postponed',
@@ -424,8 +437,11 @@ export default function useChoreState(): UseChoreStateReturn {
             });
           }
         });
-        savePostpones(newOverrides);
-        return newOverrides;
+        if (addedAny) {
+          savePostpones(newOverrides);
+          return newOverrides;
+        }
+        return prevOverrides;
       });
     }
   };

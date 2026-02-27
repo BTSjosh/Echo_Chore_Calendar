@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import AdminUpload from './AdminUpload'
 import SummaryDashboard from './SummaryDashboard'
@@ -31,6 +31,7 @@ import {
 import useChoreState from './hooks/useChoreState'
 import useMidnightRollover from './hooks/useMidnightRollover'
 import useChoreSync from './hooks/useChoreSync'
+import { fetchRemoteSnapshot } from './utils/sync'
 import ChoreCard from './components/ChoreCard'
 import AssigneePickerModal from './components/AssigneePickerModal'
 import PostponeSelectorModal from './components/PostponeSelectorModal'
@@ -61,7 +62,20 @@ function ChoreApp() {
     autoPostponeUndone,
   } = choreState;
 
-  const { currentDate, setCurrentDate } = useMidnightRollover(autoPostponeUndone);
+  // Sync from Supabase before the 4am rollover so autoPostponeUndone operates
+  // on the latest completion state from all devices, preventing stale overrides.
+  const syncBeforeRollover = useCallback(async () => {
+    try {
+      const result = await fetchRemoteSnapshot();
+      if (result?.payload) {
+        processRemoteData(result.payload, result.updated_at);
+      }
+    } catch (e) {
+      console.error('Pre-rollover sync failed:', e);
+    }
+  }, [processRemoteData]);
+
+  const { currentDate, setCurrentDate } = useMidnightRollover(autoPostponeUndone, syncBeforeRollover);
   const { isReloading, handleReloadData } = useChoreSync(processRemoteData, dirtyRef);
 
 

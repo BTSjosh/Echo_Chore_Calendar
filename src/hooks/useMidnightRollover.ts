@@ -7,16 +7,22 @@ interface UseMidnightRolloverReturn {
 }
 
 export default function useMidnightRollover(
-  autoPostponeUndone: (today: Date) => void
+  autoPostponeUndone: (today: Date) => void,
+  onBeforeRollover?: () => Promise<void>
 ): UseMidnightRolloverReturn {
   // Initialise with the logical current date (before 4am = still yesterday)
   const [currentDate, setCurrentDate] = useState(() => getLogicalNow());
   const autoPostponeRef = useRef(autoPostponeUndone);
+  const onBeforeRolloverRef = useRef(onBeforeRollover);
 
-  // Keep the ref fresh so the timeout closure never goes stale
+  // Keep the refs fresh so the timeout/interval closures never go stale
   useEffect(() => {
     autoPostponeRef.current = autoPostponeUndone;
   }, [autoPostponeUndone]);
+
+  useEffect(() => {
+    onBeforeRolloverRef.current = onBeforeRollover;
+  }, [onBeforeRollover]);
 
   // Mirror currentDate into a ref so the missed-rollover check always sees
   // the latest value without needing it as a dependency (avoids stale closures).
@@ -44,7 +50,16 @@ export default function useMidnightRollover(
       // This is what autoPostponeUndone uses to know which day's chores to carry over.
       const prevLogicalDay = toDateOnly(getLogicalNow());
 
-      timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(async () => {
+        // Sync from Supabase before creating overdue overrides so we have the
+        // latest completion state from all devices. Without this, a device with
+        // stale local data would create stale overrides and potentially push
+        // them, overwriting completions made on other devices.
+        try {
+          if (onBeforeRolloverRef.current) await onBeforeRolloverRef.current();
+        } catch (e) {
+          console.error('Pre-rollover sync failed:', e);
+        }
         setCurrentDate(getLogicalNow());
         autoPostponeRef.current(prevLogicalDay);
         // Schedule the next rollover from wall-clock time to avoid drift
@@ -66,7 +81,7 @@ export default function useMidnightRollover(
   // and immediately when the page becomes visible again. If the logical day has
   // advanced past currentDate, fires the same rollover logic as the primary path.
   useEffect(() => {
-    const checkForMissedRollover = () => {
+    const checkForMissedRollover = async () => {
       const logicalNow = getLogicalNow();
       const prevDate = toDateOnly(currentDateRef.current);
       const nowDate = toDateOnly(logicalNow);
@@ -75,6 +90,12 @@ export default function useMidnightRollover(
         // Update the ref immediately to prevent double-firing if both
         // visibilitychange and the interval happen to fire close together.
         currentDateRef.current = logicalNow;
+        // Sync from remote before creating overrides (same as primary path)
+        try {
+          if (onBeforeRolloverRef.current) await onBeforeRolloverRef.current();
+        } catch (e) {
+          console.error('Pre-rollover sync failed:', e);
+        }
         setCurrentDate(logicalNow);
         autoPostponeRef.current(prevDate);
       }
