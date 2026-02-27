@@ -55,6 +55,7 @@ export type DisplayChore = Chore & {
   _instanceType?: 'overdue' | 'normal';
   _originalDueDate?: string;
   _overdueAssignees?: string[];
+  _earliestDue?: string;
 };
 
 export type ProgressFieldKey = keyof ChoreProgress;

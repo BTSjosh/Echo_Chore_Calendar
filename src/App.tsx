@@ -199,20 +199,18 @@ function ChoreApp() {
           });
         }
       }
-    } else if (activeTab === "5 Days") {
+    } else if (activeTab === "5 Days" || activeTab === "30 Days") {
       const start = today;
       const end = new Date(today);
-      end.setDate(end.getDate() + 5);
-      filtered = chores.filter(
-        (chore) => getDueDatesWithOverrides(chore, start, end).length > 0
-      );
-    } else if (activeTab === "30 Days") {
-      const start = today;
-      const end = new Date(today);
-      end.setDate(end.getDate() + 30);
-      filtered = chores.filter(
-        (chore) => getDueDatesWithOverrides(chore, start, end).length > 0
-      );
+      end.setDate(end.getDate() + (activeTab === "5 Days" ? 5 : 30));
+      filtered = chores.reduce<DisplayChore[]>((acc, chore) => {
+        const dates = getDueDatesWithOverrides(chore, start, end);
+        if (dates.length > 0) {
+          const earliest = dates.reduce((a, b) => (a < b ? a : b));
+          acc.push({ ...chore, _earliestDue: getDateKey(earliest) });
+        }
+        return acc;
+      }, []);
     } else {
       filtered = chores;
     }
@@ -237,14 +235,23 @@ function ChoreApp() {
       });
     }
 
+    const freqOrder: Record<string, number> = { daily: 0, weekly: 1, monthly: 2, once: 3 };
     filtered = [...filtered].sort((a, b) => {
       // Overdue cards always sort before normal cards
       if (a._instanceType === 'overdue' && b._instanceType !== 'overdue') return -1;
       if (a._instanceType !== 'overdue' && b._instanceType === 'overdue') return 1;
+      // Completed cards sort last
       const aDone = isChoreComplete(a, getAssignedMembers(a, viewDate, { useScheduled, today }), viewDate);
       const bDone = isChoreComplete(b, getAssignedMembers(b, viewDate, { useScheduled, today }), viewDate);
-      if (aDone === bDone) return 0;
-      return aDone ? 1 : -1;
+      if (aDone !== bDone) return aDone ? 1 : -1;
+      // Lookahead tabs: group by earliest due date
+      if (a._earliestDue && b._earliestDue && a._earliestDue !== b._earliestDue) {
+        return a._earliestDue < b._earliestDue ? -1 : 1;
+      }
+      // Sort by frequency: daily → weekly → monthly → once
+      const aFreq = freqOrder[a.recurrence.frequency] ?? 3;
+      const bFreq = freqOrder[b.recurrence.frequency] ?? 3;
+      return aFreq - bFreq;
     });
 
     return filtered;
