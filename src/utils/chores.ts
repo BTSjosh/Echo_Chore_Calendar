@@ -23,7 +23,7 @@ export const BASE_START_DATE = "2025-01-01";
 export const SEED_CHORES: RawImportedChore[] = Array.isArray(initialChores.chores)
   ? (initialChores.chores as RawImportedChore[])
   : [];
-export const TABS: readonly TabName[] = ["Yesterday", "Today", "Tomorrow", "This Week", "This Month"] as const;
+export const TABS: readonly TabName[] = ["Yesterday", "Today", "Tomorrow", "5 Days", "30 Days"] as const;
 
 export const normalizeRecurrence = (chore: RawImportedChore): Recurrence => {
   const recurrenceValue = typeof chore.recurrence === 'object' && chore.recurrence !== null

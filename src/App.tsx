@@ -9,11 +9,7 @@ import {
   toDateOnly,
   getDateKey,
   parseDateKey,
-  getStartOfWeek,
-  getEndOfWeek,
   getNext4Days,
-  getStartOfMonth,
-  getEndOfMonth,
   getLogicalNow,
 } from './utils/dates'
 
@@ -203,15 +199,17 @@ function ChoreApp() {
           });
         }
       }
-    } else if (activeTab === "This Week") {
-      const start = getStartOfWeek(today);
-      const end = getEndOfWeek(today);
+    } else if (activeTab === "5 Days") {
+      const start = today;
+      const end = new Date(today);
+      end.setDate(end.getDate() + 5);
       filtered = chores.filter(
         (chore) => getDueDatesWithOverrides(chore, start, end).length > 0
       );
-    } else if (activeTab === "This Month") {
-      const start = getStartOfMonth(today);
-      const end = getEndOfMonth(today);
+    } else if (activeTab === "30 Days") {
+      const start = today;
+      const end = new Date(today);
+      end.setDate(end.getDate() + 30);
       filtered = chores.filter(
         (chore) => getDueDatesWithOverrides(chore, start, end).length > 0
       );
@@ -442,24 +440,24 @@ function ChoreApp() {
                     month: "long",
                     day: "numeric",
                   });
-                } else if (activeTab === "This Week") {
-                  const weekStart = getStartOfWeek(currentDate);
-                  const weekEnd = getEndOfWeek(currentDate);
-                  return `${weekStart.toLocaleDateString("en-US", {
+                } else if (activeTab === "5 Days") {
+                  const end5 = new Date(currentDate);
+                  end5.setDate(end5.getDate() + 5);
+                  return `${currentDate.toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
-                  })} - ${weekEnd.toLocaleDateString("en-US", {
+                  })} - ${end5.toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
                   })}`;
-                } else if (activeTab === "This Month") {
-                  const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-                  const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-                  return `${monthStart.toLocaleDateString("en-US", {
-                    month: "long",
+                } else if (activeTab === "30 Days") {
+                  const end30 = new Date(currentDate);
+                  end30.setDate(end30.getDate() + 30);
+                  return `${currentDate.toLocaleDateString("en-US", {
+                    month: "short",
                     day: "numeric",
-                  })} - ${monthEnd.toLocaleDateString("en-US", {
-                    month: "long",
+                  })} - ${end30.toLocaleDateString("en-US", {
+                    month: "short",
                     day: "numeric",
                   })}`;
                 }
