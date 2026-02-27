@@ -136,4 +136,4 @@ export interface HistoryEvent {
   postponedTo?: string;    // YYYY-MM-DD — only for postpone actions
 }
 
-export type TabName = "Yesterday" | "Today" | "This Week" | "This Month";
+export type TabName = "Yesterday" | "Today" | "Tomorrow" | "This Week" | "This Month";

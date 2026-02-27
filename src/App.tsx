@@ -23,6 +23,7 @@ import {
   isDueOnDate,
   getDueDatesInRange,
   getAssignedMembers,
+  getCompletedBy,
   isChoreComplete,
   isCompletionActive,
 } from './utils/chores'
@@ -72,7 +73,18 @@ function ChoreApp() {
 
   const visibleChores = useMemo(() => {
     const today = toDateOnly(currentDate);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
     let filtered: DisplayChore[] = [];
+
+    // The "view date" is used for member assignment and completion checks in
+    // the member filter and sort — it should match the day being displayed.
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const viewDate =
+      activeTab === "Yesterday" ? yesterday :
+      activeTab === "Tomorrow"  ? tomorrow  :
+      today;
 
     const isPostponedFrom = (subject: string, dateKey: string) =>
       postponedOverrides.some(
@@ -111,8 +123,6 @@ function ChoreApp() {
     };
 
     const isDueYesterday = (chore: Chore) => {
-      const yesterday = toDateOnly(new Date(today));
-      yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayKey = getDateKey(yesterday);
       if (isPostponedFrom(chore.subject, yesterdayKey)) {
         return false;
@@ -123,8 +133,21 @@ function ChoreApp() {
       return isDueOnDate(chore, yesterday);
     };
 
+    const isDueTomorrow = (chore: Chore) => {
+      const tomorrowKey = getDateKey(tomorrow);
+      if (isPostponedFrom(chore.subject, tomorrowKey)) {
+        return false;
+      }
+      if (isOverrideDueOn(chore.subject, tomorrowKey)) {
+        return true;
+      }
+      return isDueOnDate(chore, tomorrow);
+    };
+
     if (activeTab === "Yesterday") {
       filtered = chores.filter((chore) => isDueYesterday(chore));
+    } else if (activeTab === "Tomorrow") {
+      filtered = chores.filter((chore) => isDueTomorrow(chore));
     } else if (activeTab === "Today") {
       // Instance-aware logic: produce separate overdue and normal cards
       for (const chore of chores) {
@@ -197,7 +220,12 @@ function ChoreApp() {
         if (chore._instanceType === 'overdue' && chore._overdueAssignees) {
           return chore._overdueAssignees.includes(selectedMember);
         }
-        return getAssignedMembers(chore, currentDate).includes(selectedMember);
+        const assignedList = getAssignedMembers(chore, viewDate);
+        if (!assignedList.includes(selectedMember)) return false;
+        // Hide chores where this member has already completed their part —
+        // once their name is crossed off it shouldn't clutter their personal view.
+        const completedBy = getCompletedBy(chore, assignedList);
+        return !completedBy.includes(selectedMember);
       });
     }
 
@@ -205,8 +233,8 @@ function ChoreApp() {
       // Overdue cards always sort before normal cards
       if (a._instanceType === 'overdue' && b._instanceType !== 'overdue') return -1;
       if (a._instanceType !== 'overdue' && b._instanceType === 'overdue') return 1;
-      const aDone = isChoreComplete(a, getAssignedMembers(a, currentDate), currentDate);
-      const bDone = isChoreComplete(b, getAssignedMembers(b, currentDate), currentDate);
+      const aDone = isChoreComplete(a, getAssignedMembers(a, viewDate), viewDate);
+      const bDone = isChoreComplete(b, getAssignedMembers(b, viewDate), viewDate);
       if (aDone === bDone) return 0;
       return aDone ? 1 : -1;
     });
@@ -392,6 +420,14 @@ function ChoreApp() {
                   });
                 } else if (activeTab === "Today") {
                   return currentDate.toLocaleDateString("en-US", {
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric",
+                  });
+                } else if (activeTab === "Tomorrow") {
+                  const tmrw = new Date(currentDate);
+                  tmrw.setDate(tmrw.getDate() + 1);
+                  return tmrw.toLocaleDateString("en-US", {
                     weekday: "long",
                     month: "long",
                     day: "numeric",
