@@ -230,7 +230,7 @@ function ChoreApp() {
         if (chore._instanceType === 'overdue' && chore._overdueAssignees) {
           return chore._overdueAssignees.includes(selectedMember);
         }
-        const assignedList = getAssignedMembers(chore, viewDate, { useScheduled });
+        const assignedList = getAssignedMembers(chore, viewDate, { useScheduled, today });
         if (!assignedList.includes(selectedMember)) return false;
         // Hide chores where this member has already completed their part —
         // once their name is crossed off it shouldn't clutter their personal view.
@@ -243,8 +243,8 @@ function ChoreApp() {
       // Overdue cards always sort before normal cards
       if (a._instanceType === 'overdue' && b._instanceType !== 'overdue') return -1;
       if (a._instanceType !== 'overdue' && b._instanceType === 'overdue') return 1;
-      const aDone = isChoreComplete(a, getAssignedMembers(a, viewDate, { useScheduled }), viewDate);
-      const bDone = isChoreComplete(b, getAssignedMembers(b, viewDate, { useScheduled }), viewDate);
+      const aDone = isChoreComplete(a, getAssignedMembers(a, viewDate, { useScheduled, today }), viewDate);
+      const bDone = isChoreComplete(b, getAssignedMembers(b, viewDate, { useScheduled, today }), viewDate);
       if (aDone === bDone) return 0;
       return aDone ? 1 : -1;
     });

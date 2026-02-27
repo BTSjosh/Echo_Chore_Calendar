@@ -49,14 +49,16 @@ export default function ChoreCard({
       : activeTab === "Tomorrow"
       ? new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() + 1)
       : currentDate;
-  // Tomorrow is display-only: use the scheduled rotation for that date rather
-  // than the live "who's currently responsible" rotation state.  Yesterday uses
-  // the stored index because isCompletionActive + rotationIndexPrev correctly
-  // resolves who was assigned/completed that day.
+  // Tomorrow is display-only: use the delta-based rotation so it shows who is
+  // next in the rotation.  We pass `today` (currentDate) so the delta from the
+  // date formula can be applied to the stored index (source of truth).
+  // Yesterday uses the stored index because isCompletionActive +
+  // rotationIndexPrev correctly resolves who was assigned/completed that day.
   const useScheduled = activeTab === 'Tomorrow';
+  const today = currentDate;
   const assignedList = isOverdue && overdueAssignees
     ? overdueAssignees
-    : getAssignedMembers(chore, effectiveDate, { useScheduled });
+    : getAssignedMembers(chore, effectiveDate, { useScheduled, today });
   const completedBy = getCompletedBy(chore, assignedList);
   const complete = isChoreComplete(chore, assignedList, effectiveDate);
 
@@ -114,7 +116,7 @@ export default function ChoreCard({
           <p className={"mt-2 text-[0.7rem] uppercase tracking-[0.2em] silk-expand-125 " + (originalDueDate ? "text-red-400 font-semibold" : "text-slate-200")}>
             {originalDueDate
               ? `Originally due ${new Date(originalDueDate + 'T00:00:00').toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}`
-              : getNextDueDate(chore, currentDate).toLocaleDateString("en-US", {
+              : getNextDueDate(chore, effectiveDate).toLocaleDateString("en-US", {
                   weekday: "long",
                   month: "short",
                   day: "numeric",

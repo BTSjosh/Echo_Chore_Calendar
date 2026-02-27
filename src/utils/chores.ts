@@ -501,7 +501,7 @@ export const isChoreComplete = (chore: Chore, assignedOverride: string[] | undef
   return isCompletionActive(chore, date);
 };
 
-export const getAssignedMembers = (chore: Chore, date: Date, options?: { useScheduled?: boolean }): string[] => {
+export const getAssignedMembers = (chore: Chore, date: Date, options?: { useScheduled?: boolean; today?: Date }): string[] => {
   if (chore.assignmentType !== "rotating") {
     return Array.isArray(chore.assigned) ? chore.assigned : [];
   }
@@ -510,10 +510,30 @@ export const getAssignedMembers = (chore: Chore, date: Date, options?: { useSche
   const members = Array.isArray(rotation?.members) ? rotation!.members : [];
   if (!members.length) return [];
 
-  // useScheduled=true: use pure date-based rotation for display-only contexts
-  // (Yesterday / Tomorrow tabs). Ignores the stored rotation index so those tabs
-  // always show who is/was scheduled for that day rather than who is currently
-  // responsible according to the live rotation state.
+  // useScheduled + today: "delta" mode for Tomorrow tab.
+  // The pure date formula can drift from the stored rotation index (which
+  // advances on completion, not on a fixed schedule). Instead of using the
+  // absolute formula result, compute how many rotation steps the formula
+  // advances between `today` and `date`, then apply that delta to the stored
+  // index. This keeps the stored state as the source of truth while correctly
+  // projecting forward.
+  if (options?.useScheduled && options?.today) {
+    const storedIndex = getRotationIndex(chore, options.today); // uses stored
+    if (isCompletionActive(chore, options.today)) {
+      // Today's chore is already completed — the stored index has already
+      // advanced to the next person. That next person is tomorrow's assignee
+      // (the delta from completion-day to tomorrow is already baked in).
+      return [members[storedIndex]];
+    }
+    // Not completed yet — stored index = today's person.
+    // Compute how many rotation steps the formula advances from today→date.
+    const todayFormula = getRotationIndex(chore, options.today, { ignoreStored: true });
+    const targetFormula = getRotationIndex(chore, date, { ignoreStored: true });
+    const delta = ((targetFormula - todayFormula) % members.length + members.length) % members.length;
+    const projectedIndex = (storedIndex + delta) % members.length;
+    return [members[projectedIndex]];
+  }
+
   const index = getRotationIndex(chore, date, { ignoreStored: options?.useScheduled });
 
   if (!options?.useScheduled && isCompletionActive(chore, date)) {
