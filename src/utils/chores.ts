@@ -332,7 +332,7 @@ export const getDueDatesInRange = (chore: Chore, start: Date, end: Date): Date[]
 
     while (cursor <= rangeEnd) {
       const candidate = new Date(cursor.getFullYear(), cursor.getMonth(), dayOfMonth);
-      if (candidate.getMonth() === cursor.getMonth()) {
+      if (candidate.getMonth() === cursor.getMonth() && candidate >= rangeStart && candidate <= rangeEnd) {
         if (!startDate || candidate >= startDate) {
           if (!startDate) {
             results.push(candidate);
