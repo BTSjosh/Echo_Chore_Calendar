@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useMemo, useRef, useState } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import AdminUpload from './AdminUpload'
 import SummaryDashboard from './SummaryDashboard'
@@ -203,14 +203,13 @@ function ChoreApp() {
       const start = today;
       const end = new Date(today);
       end.setDate(end.getDate() + (activeTab === "5 Days" ? 5 : 30));
-      filtered = chores.reduce<DisplayChore[]>((acc, chore) => {
+      filtered = chores.flatMap((chore) => {
         const dates = getDueDatesWithOverrides(chore, start, end);
-        if (dates.length > 0) {
-          const earliest = dates.reduce((a, b) => (a < b ? a : b));
-          acc.push({ ...chore, _earliestDue: getDateKey(earliest) });
-        }
-        return acc;
-      }, []);
+        return dates.map((date) => ({
+          ...chore,
+          _earliestDue: getDateKey(date),
+        }));
+      });
     } else {
       filtered = chores;
     }
@@ -345,6 +344,7 @@ function ChoreApp() {
   // Build a key for each visible chore using instanceType to disambiguate
   const choreKey = (chore: DisplayChore) => {
     if (chore._instanceType === 'overdue') return `${chore.subject}-overdue`;
+    if (chore._earliestDue) return `${chore.subject}-${chore._earliestDue}`;
     return chore.subject;
   };
 
@@ -485,24 +485,37 @@ function ChoreApp() {
             )}
 
             <div className="space-y-6">
-              {visibleChores.map((chore) => (
-                  <ChoreCard
-                    key={choreKey(chore)}
-                    chore={chore}
-                    currentDate={currentDate}
-                    expandedChore={expandedChore}
-                    activeTab={activeTab}
-                    originalDueDate={chore._originalDueDate}
-                    overdueAssignees={chore._overdueAssignees}
-                    instanceType={chore._instanceType}
-                    onToggleDescription={toggleDescription}
-                    onToggleCompleted={handleToggleCompleted}
-                    onCompleteLateOverdue={handleCompleteLateOverdue}
-                    onAbandonOverdue={handleAbandonOverdue}
-                    onOpenPostponeSelector={openPostponeSelector}
-                    onOpenAssigneePicker={openAssigneePicker}
-                  />
-              ))}
+              {visibleChores.map((chore, index) => {
+                const isLookahead = activeTab === "5 Days" || activeTab === "30 Days";
+                const prevDate = index > 0 ? visibleChores[index - 1]._earliestDue : null;
+                const showDateHeader = isLookahead && chore._earliestDue && chore._earliestDue !== prevDate;
+                return (
+                  <Fragment key={choreKey(chore)}>
+                    {showDateHeader && (
+                      <h3 className="text-lg font-semibold text-slate-300 pt-4 first:pt-0">
+                        {parseDateKey(chore._earliestDue)?.toLocaleDateString("en-US", {
+                          weekday: "long", month: "short", day: "numeric"
+                        })}
+                      </h3>
+                    )}
+                    <ChoreCard
+                      chore={chore}
+                      currentDate={currentDate}
+                      expandedChore={expandedChore}
+                      activeTab={activeTab}
+                      originalDueDate={chore._originalDueDate}
+                      overdueAssignees={chore._overdueAssignees}
+                      instanceType={chore._instanceType}
+                      onToggleDescription={toggleDescription}
+                      onToggleCompleted={handleToggleCompleted}
+                      onCompleteLateOverdue={handleCompleteLateOverdue}
+                      onAbandonOverdue={handleAbandonOverdue}
+                      onOpenPostponeSelector={openPostponeSelector}
+                      onOpenAssigneePicker={openAssigneePicker}
+                    />
+                  </Fragment>
+                );
+              })}
             </div>
           </main>
       </div>
