@@ -235,15 +235,18 @@ function ChoreApp() {
       });
     }
 
+    const isLookahead = activeTab === "5 Days" || activeTab === "30 Days";
     const freqOrder: Record<string, number> = { daily: 0, weekly: 1, monthly: 2, once: 3 };
     filtered = [...filtered].sort((a, b) => {
       // Overdue cards always sort before normal cards
       if (a._instanceType === 'overdue' && b._instanceType !== 'overdue') return -1;
       if (a._instanceType !== 'overdue' && b._instanceType === 'overdue') return 1;
-      // Completed cards sort last
-      const aDone = isChoreComplete(a, getAssignedMembers(a, viewDate, { useScheduled, today }), viewDate);
-      const bDone = isChoreComplete(b, getAssignedMembers(b, viewDate, { useScheduled, today }), viewDate);
-      if (aDone !== bDone) return aDone ? 1 : -1;
+      // Completed cards sort last (skip for lookahead — future chores aren't complete)
+      if (!isLookahead) {
+        const aDone = isChoreComplete(a, getAssignedMembers(a, viewDate, { useScheduled, today }), viewDate);
+        const bDone = isChoreComplete(b, getAssignedMembers(b, viewDate, { useScheduled, today }), viewDate);
+        if (aDone !== bDone) return aDone ? 1 : -1;
+      }
       // Lookahead tabs: group by earliest due date
       if (a._earliestDue && b._earliestDue && a._earliestDue !== b._earliestDue) {
         return a._earliestDue < b._earliestDue ? -1 : 1;

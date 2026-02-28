@@ -5,6 +5,7 @@ import {
   getNextDueDate,
   isChoreComplete,
 } from '../utils/chores';
+import { parseDateKey } from '../utils/dates';
 import type { DisplayChore, TabName } from '../types';
 
 interface ChoreCardProps {
@@ -43,6 +44,7 @@ export default function ChoreCard({
   const isOverdue = instanceType === 'overdue';
   // Use the tab's date for assignee/completion display so we show who is
   // assigned on the relevant day and whether it was done that day.
+  const isLookahead = activeTab === "5 Days" || activeTab === "30 Days";
   const effectiveDate =
     activeTab === "Yesterday"
       ? new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() - 1)
@@ -59,8 +61,9 @@ export default function ChoreCard({
   const assignedList = isOverdue && overdueAssignees
     ? overdueAssignees
     : getAssignedMembers(chore, effectiveDate, { useScheduled, today });
-  const completedBy = getCompletedBy(chore, assignedList);
-  const complete = isChoreComplete(chore, assignedList, effectiveDate);
+  const completedBy = isLookahead ? [] : getCompletedBy(chore, assignedList);
+  // Lookahead tabs show future chores — never mark them as complete
+  const complete = isLookahead ? false : isChoreComplete(chore, assignedList, effectiveDate);
 
   return (
     <article
@@ -116,15 +119,23 @@ export default function ChoreCard({
           <p className={"mt-2 text-[0.7rem] uppercase tracking-[0.2em] silk-expand-125 " + (originalDueDate ? "text-red-400 font-semibold" : "text-slate-200")}>
             {originalDueDate
               ? `Originally due ${new Date(originalDueDate + 'T00:00:00').toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}`
-              : getNextDueDate(chore, effectiveDate).toLocaleDateString("en-US", {
-                  weekday: "long",
-                  month: "short",
-                  day: "numeric",
-                })}
+              : (isLookahead && chore._earliestDue
+                ? (parseDateKey(chore._earliestDue) ?? effectiveDate).toLocaleDateString("en-US", {
+                    weekday: "long",
+                    month: "short",
+                    day: "numeric",
+                  })
+                : getNextDueDate(chore, effectiveDate).toLocaleDateString("en-US", {
+                    weekday: "long",
+                    month: "short",
+                    day: "numeric",
+                  })
+              )}
           </p>
         </div>
 
         {/* Buttons area — no parent click handler, so taps always hit the button */}
+        {!isLookahead && (
         <div className="flex flex-wrap items-center gap-3 sm:gap-6 self-center">
           {isOverdue ? (
             showConfirm ? (
@@ -233,6 +244,7 @@ export default function ChoreCard({
             </>
           )}
         </div>
+        )}
       </div>
     </article>
   );
