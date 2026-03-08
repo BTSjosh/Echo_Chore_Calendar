@@ -22,6 +22,8 @@ interface ChoreCardProps {
   onAbandonOverdue: (subject: string, fromDate: string) => void;
   onOpenPostponeSelector: (subject: string, fromDate?: string) => void;
   onOpenAssigneePicker: (subject: string) => void;
+  isDismissing?: boolean;
+  isPulsing?: boolean;
 }
 
 export default function ChoreCard({
@@ -38,6 +40,8 @@ export default function ChoreCard({
   onAbandonOverdue,
   onOpenPostponeSelector,
   onOpenAssigneePicker,
+  isDismissing,
+  isPulsing,
 }: ChoreCardProps) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
@@ -76,6 +80,10 @@ export default function ChoreCard({
           : "border-green-500/20 hover:border-green-400/40 ") +
         (complete ? "opacity-70" : "")
       }
+      style={{
+        ...(isDismissing ? { animation: 'card-slide-out 400ms ease-in forwards', pointerEvents: 'none' as const } : {}),
+        ...(isPulsing ? { animation: 'card-complete-pulse 800ms ease-out' } : {}),
+      }}
     >
       <div className="flex flex-wrap items-start justify-between gap-6">
         {/* Clickable text area — only this triggers expand/collapse */}

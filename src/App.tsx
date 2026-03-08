@@ -68,12 +68,16 @@ function choreKey(chore: DisplayChore): string {
 function ChoreApp() {
   const [activeTab, setActiveTab] = useState<TabName>("Today");
   const [selectedMember, setSelectedMember] = useState("All");
-  const [postponeTarget, setPostponeTarget] = useState<{ subject: string; fromDate: string } | null>(null);
+  const [postponeTarget, setPostponeTarget] = useState<{ subject: string; fromDate: string; dismissKey: string } | null>(null);
   const [assigneePicker, setAssigneePicker] = useState<string | null>(null);
   const [expandedChore, setExpandedChore] = useState<string | null>(null);
   const assigneeCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [toast, setToast] = useState<{ message: string; variant: 'done' | 'abandoned' | 'postponed' } | null>(null);
+  const [toastExiting, setToastExiting] = useState(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastExitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [dismissingCards, setDismissingCards] = useState<Set<string>>(new Set());
+  const [pulsingCards, setPulsingCards] = useState<Set<string>>(new Set());
 
   const choreState = useChoreState();
   const {
@@ -116,21 +120,41 @@ function ChoreApp() {
 
   const showToast = (message: string, variant: 'done' | 'abandoned' | 'postponed') => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    if (toastExitTimeoutRef.current) clearTimeout(toastExitTimeoutRef.current);
+    setToastExiting(false);
     setToast({ message, variant });
     toastTimeoutRef.current = setTimeout(() => {
-      setToast(null);
-      toastTimeoutRef.current = null;
+      setToastExiting(true);
+      toastExitTimeoutRef.current = setTimeout(() => {
+        setToast(null);
+        setToastExiting(false);
+      }, 250);
     }, 2000);
   };
 
+  const dismissCard = useCallback((key: string, callback: () => void) => {
+    setDismissingCards(prev => new Set(prev).add(key));
+    setTimeout(() => {
+      callback();
+      setDismissingCards(prev => { const next = new Set(prev); next.delete(key); return next; });
+    }, 400);
+  }, []);
+
+  const pulseCard = useCallback((key: string) => {
+    setPulsingCards(prev => new Set(prev).add(key));
+    setTimeout(() => {
+      setPulsingCards(prev => { const next = new Set(prev); next.delete(key); return next; });
+    }, 800);
+  }, []);
+
   const handleCompleteLateOverdue = (subject: string, fromDate: string) => {
-    completeLateOverdue(subject, fromDate);
     showToast('\u2713 Marked done!', 'done');
+    dismissCard(`${subject}-overdue`, () => completeLateOverdue(subject, fromDate));
   };
 
   const handleAbandonOverdue = (subject: string, fromDate: string) => {
-    abandonOverdue(subject, fromDate);
     showToast('Chore abandoned', 'abandoned');
+    dismissCard(`${subject}-overdue`, () => abandonOverdue(subject, fromDate));
   };
 
   const handleToggleCompleted = (subject: string) => {
@@ -139,7 +163,10 @@ function ChoreApp() {
       ? isChoreComplete(chore, getAssignedMembers(chore, currentDate), currentDate)
       : false;
     toggleCompleted(subject, currentDate);
-    if (!wasComplete) showToast('\u2713 Done!', 'done');
+    if (!wasComplete) {
+      showToast('\u2713 Done!', 'done');
+      pulseCard(subject);
+    }
   };
 
   const handleToggleMemberCompleted = (subject: string, member: string) => {
@@ -149,9 +176,11 @@ function ChoreApp() {
       if (assigneeCloseTimeoutRef.current) {
         clearTimeout(assigneeCloseTimeoutRef.current);
       }
+      showToast('\u2713 Done!', 'done');
       assigneeCloseTimeoutRef.current = setTimeout(() => {
         setAssigneePicker(null);
         assigneeCloseTimeoutRef.current = null;
+        pulseCard(subject);
       }, 1000);
     }
   };
@@ -161,7 +190,12 @@ function ChoreApp() {
   };
 
   const openPostponeSelector = (subject: string, fromDate?: string) => {
-    setPostponeTarget({ subject, fromDate: fromDate ?? todayKey });
+    const isOverdueCard = !!fromDate;
+    setPostponeTarget({
+      subject,
+      fromDate: fromDate ?? todayKey,
+      dismissKey: isOverdueCard ? `${subject}-overdue` : subject,
+    });
   };
 
   const closePostponeSelector = () => {
@@ -185,11 +219,15 @@ function ChoreApp() {
   };
 
   const handlePostponeToDate = (subject: string, date: Date) => {
-    postponeToDate(subject, postponeTarget?.fromDate ?? todayKey, getDateKey(date));
-    setExpandedChore(null);
-    setCurrentDate(getLogicalNow());
+    if (!postponeTarget) return;
+    const { fromDate, dismissKey } = postponeTarget;
     setPostponeTarget(null);
     showToast('Postponed', 'postponed');
+    dismissCard(dismissKey, () => {
+      postponeToDate(subject, fromDate, getDateKey(date));
+      setExpandedChore(null);
+      setCurrentDate(getLogicalNow());
+    });
   };
 
   return (
@@ -311,6 +349,8 @@ function ChoreApp() {
                       onAbandonOverdue={handleAbandonOverdue}
                       onOpenPostponeSelector={openPostponeSelector}
                       onOpenAssigneePicker={openAssigneePicker}
+                      isDismissing={dismissingCards.has(choreKey(chore))}
+                      isPulsing={pulsingCards.has(choreKey(chore))}
                     />
                   </Fragment>
                 );
@@ -340,17 +380,24 @@ function ChoreApp() {
 
     {/* Action feedback toast */}
     {toast && (
-      <div
-        className={
-          "fixed bottom-10 left-1/2 -translate-x-1/2 z-50 px-6 py-3 sm:px-10 sm:py-5 rounded-2xl text-xl sm:text-3xl font-bold shadow-2xl pointer-events-none " +
-          (toast.variant === 'done'
-            ? "bg-green-500 text-slate-950"
-            : toast.variant === 'abandoned'
-            ? "bg-amber-500 text-slate-950"
-            : "bg-sky-500 text-slate-950")
-        }
-      >
-        {toast.message}
+      <div className="fixed bottom-10 left-1/2 z-50 pointer-events-none" style={{ transform: 'translateX(-50%)' }}>
+        <div
+          className={
+            "px-6 py-3 sm:px-10 sm:py-5 rounded-2xl text-xl sm:text-3xl font-bold shadow-2xl whitespace-nowrap " +
+            (toast.variant === 'done'
+              ? "bg-green-500 text-slate-950"
+              : toast.variant === 'abandoned'
+              ? "bg-amber-500 text-slate-950"
+              : "bg-sky-500 text-slate-950")
+          }
+          style={{
+            animation: toastExiting
+              ? 'toast-slide-out 250ms ease-in forwards'
+              : 'toast-slide-in 200ms ease-out forwards',
+          }}
+        >
+          {toast.message}
+        </div>
       </div>
     )}
 
