@@ -467,6 +467,12 @@ export const getCompletedBy = (chore: Chore, assignedOverride?: string[], date?:
     }
     return chore.completedBy;
   }
+  // For fully completed chores, check if the completion is still active for the
+  // queried date. Without this, a chore completed today would show struck-through
+  // assignees on the Tomorrow tab even though it hasn't been done for that date.
+  if (chore.completed && date) {
+    return isCompletionActive(chore, date) ? assigned : [];
+  }
   return chore.completed ? assigned : [];
 };
 
