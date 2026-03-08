@@ -40,6 +40,7 @@ export interface ChoreProgress {
   lastCompletedDate?: string;
   completedToday?: boolean;
   completedThrough?: string;
+  completedByDate?: string;
   nextDue?: string;
   nextDueDate?: string;
   rotationIndex?: number;

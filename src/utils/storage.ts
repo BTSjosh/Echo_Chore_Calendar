@@ -31,6 +31,7 @@ export const PROGRESS_FIELDS: ProgressFieldKey[] = [
   "lastCompletedDate",
   "completedToday",
   "completedThrough",
+  "completedByDate",
   "nextDue",
   "nextDueDate",
   "rotationIndex",

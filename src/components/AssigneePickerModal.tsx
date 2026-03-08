@@ -20,7 +20,7 @@ export default function AssigneePickerModal({
   if (!chore) return null;
 
   const assignedList = getAssignedMembers(chore, currentDate);
-  const completedBy = getCompletedBy(chore, assignedList);
+  const completedBy = getCompletedBy(chore, assignedList, currentDate);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">

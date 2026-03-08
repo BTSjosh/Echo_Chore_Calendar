@@ -13,7 +13,11 @@
       "Bash(npm run deploy:*)",
       "Bash(gh run list:*)",
       "Bash(npx eslint:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(curl -s \"https://ggwszltqckmwgwhmttof.supabase.co/rest/v1/chore_snapshots?select=payload&id=eq.current&limit=1\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdnd3N6bHRxY2ttd2d3aG10dG9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MzE2NDksImV4cCI6MjA4NjUwNzY0OX0.14JIoYQ58DMO_a8JaueWkIqv6FzDTMH3M1XOEsPch5g\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdnd3N6bHRxY2ttd2d3aG10dG9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MzE2NDksImV4cCI6MjA4NjUwNzY0OX0.14JIoYQ58DMO_a8JaueWkIqv6FzDTMH3M1XOEsPch5g\")",
+      "Bash(python -c \":*)",
+      "Bash(curl -s \"https://btsjosh.github.io/Echo_Chore_Calendar/assets/index.iI5hYVib.js\")",
+      "Bash(npm run:*)"
     ]
   }
 }

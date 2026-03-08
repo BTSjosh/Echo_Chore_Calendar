@@ -6,7 +6,6 @@ import ChoreEditor from './editor/ChoreEditor'
 import './App.css'
 
 import {
-  toDateOnly,
   getDateKey,
   parseDateKey,
   getNext4Days,
@@ -16,15 +15,12 @@ import {
 import {
   HOUSEHOLD,
   TABS,
-  isDueOnDate,
-  getDueDatesInRange,
   getAssignedMembers,
-  getCompletedBy,
   isChoreComplete,
-  isCompletionActive,
 } from './utils/chores'
 
 import useChoreState from './hooks/useChoreState'
+import useVisibleChores from './hooks/useVisibleChores'
 import useMidnightRollover from './hooks/useMidnightRollover'
 import useChoreSync from './hooks/useChoreSync'
 import { fetchRemoteSnapshot } from './utils/sync'
@@ -32,7 +28,42 @@ import ChoreCard from './components/ChoreCard'
 import AssigneePickerModal from './components/AssigneePickerModal'
 import PostponeSelectorModal from './components/PostponeSelectorModal'
 
-import type { Chore, DisplayChore, TabName } from './types'
+import type { DisplayChore, TabName } from './types'
+
+// ── date header helpers ─────────────────────────────────────────────────────
+
+const LONG_DATE: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric' };
+const SHORT_DATE: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+
+function getTabDateLabel(activeTab: TabName, currentDate: Date): string {
+  if (activeTab === 'Yesterday') {
+    const d = new Date(currentDate);
+    d.setDate(d.getDate() - 1);
+    return d.toLocaleDateString('en-US', LONG_DATE);
+  }
+  if (activeTab === 'Today') {
+    return currentDate.toLocaleDateString('en-US', LONG_DATE);
+  }
+  if (activeTab === 'Tomorrow') {
+    const d = new Date(currentDate);
+    d.setDate(d.getDate() + 1);
+    return d.toLocaleDateString('en-US', LONG_DATE);
+  }
+  // Lookahead range
+  const days = activeTab === '5 Days' ? 5 : 30;
+  const end = new Date(currentDate);
+  end.setDate(end.getDate() + days);
+  return `${currentDate.toLocaleDateString('en-US', SHORT_DATE)} - ${end.toLocaleDateString('en-US', SHORT_DATE)}`;
+}
+
+/** Build a React key for each visible chore, disambiguating overdue + lookahead entries. */
+function choreKey(chore: DisplayChore): string {
+  if (chore._instanceType === 'overdue') return `${chore.subject}-overdue`;
+  if (chore._earliestDue) return `${chore.subject}-${chore._earliestDue}`;
+  return chore.subject;
+}
+
+// ── main component ──────────────────────────────────────────────────────────
 
 function ChoreApp() {
   const [activeTab, setActiveTab] = useState<TabName>("Today");
@@ -74,194 +105,14 @@ function ChoreApp() {
   const { currentDate, setCurrentDate } = useMidnightRollover(autoPostponeUndone, syncBeforeRollover);
   const { isReloading, handleReloadData } = useChoreSync(processRemoteData, dirtyRef);
 
+  const { visibleChores, overdueCount, todayKey } = useVisibleChores(
+    chores, activeTab, selectedMember, postponedOverrides, currentDate,
+  );
 
-  const todayKey = useMemo(() => getDateKey(currentDate), [currentDate]);
   const postponeDates = useMemo(
     () => getNext4Days(currentDate),
     [currentDate]
   );
-
-  const visibleChores = useMemo(() => {
-    const today = toDateOnly(currentDate);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    let filtered: DisplayChore[] = [];
-
-    // The "view date" is used for member assignment and completion checks in
-    // the member filter and sort — it should match the day being displayed.
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-    const viewDate =
-      activeTab === "Yesterday" ? yesterday :
-      activeTab === "Tomorrow"  ? tomorrow  :
-      today;
-
-    const isPostponedFrom = (subject: string, dateKey: string) =>
-      postponedOverrides.some(
-        (override) => override.subject === subject && override.fromDate === dateKey
-      );
-
-    const isOverrideDueOn = (subject: string, dateKey: string) =>
-      postponedOverrides.some(
-        (override) => override.subject === subject && override.toDate === dateKey
-      );
-
-    const isDateKeyInRange = (dateKey: string, start: Date, end: Date) => {
-      const date = parseDateKey(dateKey);
-      if (!date) return false;
-      return date >= start && date <= end;
-    };
-
-    const getDueDatesWithOverrides = (chore: Chore, start: Date, end: Date) => {
-      const dueDates = getDueDatesInRange(chore, start, end);
-      const nextDates = dueDates.filter(
-        (date) => !isPostponedFrom(chore.subject, getDateKey(date))
-      );
-
-      postponedOverrides.forEach((override) => {
-        if (override.subject !== chore.subject) return;
-        if (!isDateKeyInRange(override.toDate, start, end)) return;
-        const overrideDate = parseDateKey(override.toDate);
-        if (!overrideDate) return;
-        const overrideKey = getDateKey(overrideDate);
-        if (!nextDates.some((date) => getDateKey(date) === overrideKey)) {
-          nextDates.push(overrideDate);
-        }
-      });
-
-      return nextDates;
-    };
-
-    const isDueYesterday = (chore: Chore) => {
-      const yesterdayKey = getDateKey(yesterday);
-      // Don't filter out chores that were postponed from yesterday — Yesterday
-      // should show what was scheduled that day, even if not done (overdue).
-      if (isOverrideDueOn(chore.subject, yesterdayKey)) {
-        return true;
-      }
-      return isDueOnDate(chore, yesterday);
-    };
-
-    const isDueTomorrow = (chore: Chore) => {
-      const tomorrowKey = getDateKey(tomorrow);
-      if (isPostponedFrom(chore.subject, tomorrowKey)) {
-        return false;
-      }
-      if (isOverrideDueOn(chore.subject, tomorrowKey)) {
-        return true;
-      }
-      return isDueOnDate(chore, tomorrow);
-    };
-
-    if (activeTab === "Yesterday") {
-      filtered = chores.filter((chore) => isDueYesterday(chore));
-    } else if (activeTab === "Tomorrow") {
-      filtered = chores.filter((chore) => isDueTomorrow(chore));
-    } else if (activeTab === "Today") {
-      // Instance-aware logic: produce separate overdue and normal cards
-      for (const chore of chores) {
-        // Find overdue overrides targeting today (fromDate < todayKey)
-        const overdueOverrides = postponedOverrides.filter(
-          (o) => o.subject === chore.subject && o.toDate === todayKey && o.fromDate < todayKey
-        );
-        // Pick the earliest fromDate
-        const earliestOverdue = overdueOverrides.length > 0
-          ? overdueOverrides.reduce((earliest, o) => o.fromDate < earliest.fromDate ? o : earliest)
-          : null;
-
-        if (earliestOverdue) {
-          const originalDate = parseDateKey(earliestOverdue.fromDate);
-          const overdueAssignees = originalDate
-            ? getAssignedMembers(chore, originalDate)
-            : getAssignedMembers(chore, today);
-          // Skip stale overdue card: chore was actually completed for that original date
-          // (e.g. Echo Show marked it done before PC's midnight rollover created the override).
-          const isStaleOverride = originalDate && isCompletionActive(chore, originalDate);
-          if (!isStaleOverride) {
-            filtered.push({
-              ...chore,
-              _instanceType: 'overdue',
-              _originalDueDate: earliestOverdue.fromDate,
-              _overdueAssignees: overdueAssignees,
-            });
-          }
-        }
-
-        // Show the normal card unless postponed away from today.
-        // Always show alongside any overdue card so today's instance is visible
-        // regardless of whether a prior day's overdue is pending.
-        const normallyDueToday = isDueOnDate(chore, today)
-          && !isPostponedFrom(chore.subject, todayKey);
-        if (normallyDueToday) {
-          filtered.push({
-            ...chore,
-            _instanceType: 'normal',
-          });
-        }
-      }
-    } else if (activeTab === "5 Days" || activeTab === "30 Days") {
-      const start = today;
-      const end = new Date(today);
-      end.setDate(end.getDate() + (activeTab === "5 Days" ? 5 : 30));
-      filtered = chores.flatMap((chore) => {
-        const dates = getDueDatesWithOverrides(chore, start, end);
-        return dates.map((date) => ({
-          ...chore,
-          _earliestDue: getDateKey(date),
-        }));
-      });
-    } else {
-      filtered = chores;
-    }
-
-    // Tomorrow is display-only — use scheduled rotation so it shows who is next
-    // in the rotation, not the current (possibly overdue) person. Yesterday uses
-    // stored rotation state since isCompletionActive + rotationIndexPrev correctly
-    // resolves who was assigned/completed that day.
-    const useScheduled = activeTab === 'Tomorrow';
-
-    if (selectedMember !== "All") {
-      filtered = filtered.filter((chore) => {
-        if (chore._instanceType === 'overdue' && chore._overdueAssignees) {
-          return chore._overdueAssignees.includes(selectedMember);
-        }
-        const assignedList = getAssignedMembers(chore, viewDate, { useScheduled, today });
-        if (!assignedList.includes(selectedMember)) return false;
-        // Hide chores where this member has already completed their part —
-        // once their name is crossed off it shouldn't clutter their personal view.
-        const completedBy = getCompletedBy(chore, assignedList);
-        return !completedBy.includes(selectedMember);
-      });
-    }
-
-    const isLookahead = activeTab === "5 Days" || activeTab === "30 Days";
-    const freqOrder: Record<string, number> = { daily: 0, weekly: 1, monthly: 2, once: 3 };
-    filtered = [...filtered].sort((a, b) => {
-      // Overdue cards always sort before normal cards
-      if (a._instanceType === 'overdue' && b._instanceType !== 'overdue') return -1;
-      if (a._instanceType !== 'overdue' && b._instanceType === 'overdue') return 1;
-      // Completed cards sort last (skip for lookahead — future chores aren't complete)
-      if (!isLookahead) {
-        const aDone = isChoreComplete(a, getAssignedMembers(a, viewDate, { useScheduled, today }), viewDate);
-        const bDone = isChoreComplete(b, getAssignedMembers(b, viewDate, { useScheduled, today }), viewDate);
-        if (aDone !== bDone) return aDone ? 1 : -1;
-      }
-      // Lookahead tabs: group by earliest due date
-      if (a._earliestDue && b._earliestDue && a._earliestDue !== b._earliestDue) {
-        return a._earliestDue < b._earliestDue ? -1 : 1;
-      }
-      // Sort by frequency: daily → weekly → monthly → once
-      const aFreq = freqOrder[a.recurrence.frequency] ?? 3;
-      const bFreq = freqOrder[b.recurrence.frequency] ?? 3;
-      return aFreq - bFreq;
-    });
-
-    return filtered;
-  }, [activeTab, chores, currentDate, selectedMember, postponedOverrides, todayKey]);
-
-  const overdueCount = useMemo(() => {
-    return visibleChores.filter((c) => c._instanceType === 'overdue').length;
-  }, [visibleChores]);
 
   const showToast = (message: string, variant: 'done' | 'abandoned' | 'postponed') => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
@@ -274,7 +125,7 @@ function ChoreApp() {
 
   const handleCompleteLateOverdue = (subject: string, fromDate: string) => {
     completeLateOverdue(subject, fromDate);
-    showToast('✓ Marked done!', 'done');
+    showToast('\u2713 Marked done!', 'done');
   };
 
   const handleAbandonOverdue = (subject: string, fromDate: string) => {
@@ -288,7 +139,7 @@ function ChoreApp() {
       ? isChoreComplete(chore, getAssignedMembers(chore, currentDate), currentDate)
       : false;
     toggleCompleted(subject, currentDate);
-    if (!wasComplete) showToast('✓ Done!', 'done');
+    if (!wasComplete) showToast('\u2713 Done!', 'done');
   };
 
   const handleToggleMemberCompleted = (subject: string, member: string) => {
@@ -341,13 +192,6 @@ function ChoreApp() {
     showToast('Postponed', 'postponed');
   };
 
-  // Build a key for each visible chore using instanceType to disambiguate
-  const choreKey = (chore: DisplayChore) => {
-    if (chore._instanceType === 'overdue') return `${chore.subject}-overdue`;
-    if (chore._earliestDue) return `${chore.subject}-${chore._earliestDue}`;
-    return chore.subject;
-  };
-
   return (
     <div className="min-h-screen bg-[#121212] text-slate-100">
       <div className="mx-auto w-full px-6 py-8 2xl:px-12">
@@ -386,7 +230,6 @@ function ChoreApp() {
           <div className="flex flex-wrap items-center gap-4">
             {TABS.map((tab) => {
               const isActive = activeTab === tab;
-              // Tab selector button: auto-sizes to content, styled for active/inactive state
               return (
                 <button
                   key={tab}
@@ -427,51 +270,7 @@ function ChoreApp() {
           </div>
           <div className="rounded-2xl bg-green-500/10 border border-green-500/30 px-6 py-3 w-fit">
             <p className="text-2xl font-bold text-slate-100">
-              {(() => {
-                if (activeTab === "Yesterday") {
-                  const yesterday = new Date(currentDate);
-                  yesterday.setDate(yesterday.getDate() - 1);
-                  return yesterday.toLocaleDateString("en-US", {
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                  });
-                } else if (activeTab === "Today") {
-                  return currentDate.toLocaleDateString("en-US", {
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                  });
-                } else if (activeTab === "Tomorrow") {
-                  const tmrw = new Date(currentDate);
-                  tmrw.setDate(tmrw.getDate() + 1);
-                  return tmrw.toLocaleDateString("en-US", {
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                  });
-                } else if (activeTab === "5 Days") {
-                  const end5 = new Date(currentDate);
-                  end5.setDate(end5.getDate() + 5);
-                  return `${currentDate.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })} - ${end5.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}`;
-                } else if (activeTab === "30 Days") {
-                  const end30 = new Date(currentDate);
-                  end30.setDate(end30.getDate() + 30);
-                  return `${currentDate.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })} - ${end30.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}`;
-                }
-              })()}
+              {getTabDateLabel(activeTab, currentDate)}
             </p>
           </div>
             </header>

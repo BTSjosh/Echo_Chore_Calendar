@@ -46,7 +46,9 @@ export default function ChoreCard({
   // assigned on the relevant day and whether it was done that day.
   const isLookahead = activeTab === "5 Days" || activeTab === "30 Days";
   const effectiveDate =
-    activeTab === "Yesterday"
+    isLookahead && chore._earliestDue
+      ? parseDateKey(chore._earliestDue) ?? currentDate
+      : activeTab === "Yesterday"
       ? new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() - 1)
       : activeTab === "Tomorrow"
       ? new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() + 1)
@@ -56,12 +58,12 @@ export default function ChoreCard({
   // date formula can be applied to the stored index (source of truth).
   // Yesterday uses the stored index because isCompletionActive +
   // rotationIndexPrev correctly resolves who was assigned/completed that day.
-  const useScheduled = activeTab === 'Tomorrow';
+  const useScheduled = activeTab === 'Tomorrow' || isLookahead;
   const today = currentDate;
   const assignedList = isOverdue && overdueAssignees
     ? overdueAssignees
     : getAssignedMembers(chore, effectiveDate, { useScheduled, today });
-  const completedBy = isLookahead ? [] : getCompletedBy(chore, assignedList);
+  const completedBy = isLookahead ? [] : getCompletedBy(chore, assignedList, effectiveDate);
   // Lookahead tabs show future chores — never mark them as complete
   const complete = isLookahead ? false : isChoreComplete(chore, assignedList, effectiveDate);
 

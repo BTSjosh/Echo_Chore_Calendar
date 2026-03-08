@@ -70,11 +70,6 @@ export default function useChoreState(): UseChoreStateReturn {
     return applyProgress(normalized, storedProgress);
   });
 
-  // Keep a ref to the latest chores so callbacks can read current state
-  // without nesting state setters or relying on stale closures.
-  const choresRef = useRef(chores);
-  choresRef.current = chores;
-
   const [postponedOverrides, setPostponedOverrides] = useState<PostponeEntry[]>(
     () => loadPostpones()
   );
@@ -139,6 +134,7 @@ export default function useChoreState(): UseChoreStateReturn {
             ...chore,
             completed: false,
             completedBy: [],
+            completedByDate: undefined,
             lastCompletedDate: undefined,
             completedThrough: undefined,
             rotationIndex: rolledBackIndex,
@@ -165,7 +161,7 @@ export default function useChoreState(): UseChoreStateReturn {
       const next = prev.map((chore) => {
         if (chore.subject !== subject) return chore;
         const assigned = getAssignedMembers(chore, currentDate);
-        const completedBy = getCompletedBy(chore, assigned);
+        const completedBy = getCompletedBy(chore, assigned, currentDate);
         const removing = completedBy.includes(member);
         const nextCompletedBy = removing
           ? completedBy.filter((name) => name !== member)
@@ -184,8 +180,8 @@ export default function useChoreState(): UseChoreStateReturn {
           assigned.length > 1
             ? assigned.every((name) => nextCompletedBy.includes(name))
             : Boolean(chore.completed);
-        const updated: Chore = { ...chore, completedBy: nextCompletedBy, completed };
-        if (completed) return advanceRotation(updated, currentDate);
+        const updated: Chore = { ...chore, completedBy: nextCompletedBy, completed, completedByDate: getDateKey(currentDate) };
+        if (completed) return advanceRotation({ ...updated, completedByDate: undefined }, currentDate);
         // If dropping from fully-done back to incomplete, roll back the rotation
         // so the assignee doesn't silently jump to the next person.
         if (wasCompleted && !completed) {
@@ -193,7 +189,7 @@ export default function useChoreState(): UseChoreStateReturn {
             ? chore.rotationIndexPrev
             : chore.rotationIndex;
           return { ...updated, rotationIndex: rolledBackIndex, rotationIndexPrev: undefined,
-            lastCompletedDate: undefined, completedThrough: undefined };
+            lastCompletedDate: undefined, completedThrough: undefined, completedByDate: getDateKey(currentDate) };
         }
         return updated;
       });

@@ -84,29 +84,28 @@ export const normalizeCompleted = (chore: RawImportedChore): boolean =>
 
 export const normalizeRotation = (chore: RawImportedChore, isRotating: boolean): Rotation | undefined => {
   if (!isRotating) return undefined;
+  const assignment = chore.assignment || {};
+  const members = Array.isArray(assignment.order)
+    ? assignment.order
+    : Array.isArray(chore.rotation?.members)
+    ? chore.rotation!.members
+    : Array.isArray(chore.rotationMembers)
+    ? chore.rotationMembers
+    : HOUSEHOLD.slice(0, 3);
   return {
     group: chore.rotation?.group ?? chore.rotationGroup ?? "A",
-    cycleLength: chore.rotation?.cycleLength ?? (chore.cycleLength as number | undefined) ?? 1,
-    members: Array.isArray(chore.rotation?.members)
-      ? chore.rotation!.members
-      : Array.isArray(chore.rotationMembers)
-      ? chore.rotationMembers
-      : HOUSEHOLD.slice(0, 3),
-    cycleType: chore.rotation?.cycleType ?? (chore.rotationCycleType as Rotation['cycleType'] | undefined) ?? "weekly",
-    everyDays: chore.rotation?.everyDays ?? chore.rotationEveryDays ?? 1,
+    cycleLength: chore.rotation?.cycleLength ?? (chore.cycleLength as number | undefined) ?? chore.rotationInterval ?? 1,
+    members,
+    cycleType: chore.rotation?.cycleType ?? (chore.rotationCycleType as Rotation['cycleType'] | undefined) ?? normalizeRotationCycleType(chore) as Rotation['cycleType'],
+    everyDays: chore.rotation?.everyDays ?? chore.rotationEveryDays ?? chore.recurrenceInterval ?? 1,
   };
 };
 
 export const mapImportedChore = (chore: RawImportedChore): Chore => {
   const assignment = chore.assignment || {};
   const isRotating = assignment.type === "rotating" || chore.assignmentType === "rotating";
-  const rotationMembers = Array.isArray(assignment.order)
-    ? assignment.order
-    : Array.isArray(chore.rotation?.members)
-    ? chore.rotation!.members
-    : Array.isArray(chore.rotationMembers)
-    ? chore.rotationMembers
-    : [];
+  const rotation = normalizeRotation(chore, isRotating);
+  const rotationMembers = rotation?.members ?? [];
   const assigned = isRotating
     ? rotationMembers.slice(0, 1)
     : Array.isArray(assignment.assignees)
@@ -137,16 +136,7 @@ export const mapImportedChore = (chore: RawImportedChore): Chore => {
 
   if (!isRotating) return normalized;
 
-  return {
-    ...normalized,
-    rotation: {
-      group: chore.rotation?.group ?? chore.rotationGroup ?? "A",
-      cycleLength: chore.rotation?.cycleLength ?? (chore.cycleLength as number | undefined) ?? chore.rotationInterval ?? 1,
-      members: rotationMembers.length ? rotationMembers : HOUSEHOLD.slice(0, 3),
-      cycleType: chore.rotation?.cycleType ?? (chore.rotationCycleType as Rotation['cycleType'] | undefined) ?? normalizeRotationCycleType(chore) as Rotation['cycleType'],
-      everyDays: chore.rotation?.everyDays ?? chore.rotationEveryDays ?? chore.recurrenceInterval ?? 1,
-    },
-  };
+  return { ...normalized, rotation };
 };
 
 export const getNextDueDate = (chore: Chore, fromDate: Date = new Date()): Date => {
@@ -456,13 +446,25 @@ export const getRotationIndex = (chore: Chore, date: Date, options?: { ignoreSto
   return ((steps % members.length) + members.length) % members.length;
 };
 
-export const getCompletedBy = (chore: Chore, assignedOverride?: string[]): string[] => {
+export const getCompletedBy = (chore: Chore, assignedOverride?: string[], date?: Date): string[] => {
   const assigned = Array.isArray(assignedOverride)
     ? assignedOverride
     : Array.isArray(chore.assigned)
     ? chore.assigned
     : [];
-  if (Array.isArray(chore.completedBy)) {
+  if (Array.isArray(chore.completedBy) && chore.completedBy.length > 0) {
+    // For partial completions (not all members done), keep the completedBy list
+    // valid until the chore's NEXT occurrence after completedByDate. Once the
+    // next occurrence arrives, the chore starts fresh for everyone.
+    if (!chore.completed && date && chore.completedByDate) {
+      const completedByDateParsed = parseDateKey(chore.completedByDate);
+      if (completedByDateParsed) {
+        const nextOccurrence = getNextDueAfter(chore, completedByDateParsed);
+        if (nextOccurrence && toDateOnly(date) >= toDateOnly(nextOccurrence)) {
+          return [];
+        }
+      }
+    }
     return chore.completedBy;
   }
   return chore.completed ? assigned : [];
@@ -495,7 +497,7 @@ export const isChoreComplete = (chore: Chore, assignedOverride: string[] | undef
     ? chore.assigned
     : [];
   if (assigned.length > 1) {
-    const completedBy = getCompletedBy(chore, assigned);
+    const completedBy = getCompletedBy(chore, assigned, date);
     return assigned.every((member) => completedBy.includes(member));
   }
   return isCompletionActive(chore, date);
