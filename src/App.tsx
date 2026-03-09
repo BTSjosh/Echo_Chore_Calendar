@@ -144,7 +144,7 @@ function ChoreApp() {
     setPulsingCards(prev => new Set(prev).add(key));
     setTimeout(() => {
       setPulsingCards(prev => { const next = new Set(prev); next.delete(key); return next; });
-    }, 800);
+    }, 1000);
   }, []);
 
   const handleCompleteLateOverdue = (subject: string, fromDate: string) => {
@@ -162,10 +162,12 @@ function ChoreApp() {
     const wasComplete = chore
       ? isChoreComplete(chore, getAssignedMembers(chore, currentDate), currentDate)
       : false;
-    toggleCompleted(subject, currentDate);
     if (!wasComplete) {
       showToast('\u2713 Done!', 'done');
       pulseCard(subject);
+      setTimeout(() => toggleCompleted(subject, currentDate), 1000);
+    } else {
+      toggleCompleted(subject, currentDate);
     }
   };
 
@@ -181,7 +183,7 @@ function ChoreApp() {
         setAssigneePicker(null);
         assigneeCloseTimeoutRef.current = null;
         pulseCard(subject);
-      }, 1000);
+      }, 600);
     }
   };
 

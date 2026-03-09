@@ -82,7 +82,7 @@ export default function ChoreCard({
       }
       style={{
         ...(isDismissing ? { animation: 'card-slide-out 400ms ease-in forwards', pointerEvents: 'none' as const } : {}),
-        ...(isPulsing ? { animation: 'card-complete-pulse 800ms ease-out' } : {}),
+        ...(isPulsing ? { animation: 'card-complete-pulse 1s ease-out' } : {}),
       }}
     >
       <div className="flex flex-wrap items-start justify-between gap-6">
