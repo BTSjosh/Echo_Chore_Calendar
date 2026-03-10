@@ -69,7 +69,7 @@ function ChoreApp() {
   const [activeTab, setActiveTab] = useState<TabName>("Today");
   const [selectedMember, setSelectedMember] = useState("All");
   const [postponeTarget, setPostponeTarget] = useState<{ subject: string; fromDate: string; dismissKey: string } | null>(null);
-  const [assigneePicker, setAssigneePicker] = useState<string | null>(null);
+  const [assigneePicker, setAssigneePicker] = useState<{ subject: string; overdueDate?: string; overdueAssignees?: string[] } | null>(null);
   const [expandedChore, setExpandedChore] = useState<string | null>(null);
   const assigneeCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [toast, setToast] = useState<{ message: string; variant: 'done' | 'abandoned' | 'postponed' } | null>(null);
@@ -89,6 +89,7 @@ function ChoreApp() {
     postponeToDate,
     completeLateOverdue,
     abandonOverdue,
+    removePostponeOverride,
     processRemoteData,
     autoPostponeUndone,
   } = choreState;
@@ -172,17 +173,30 @@ function ChoreApp() {
   };
 
   const handleToggleMemberCompleted = (subject: string, member: string) => {
-    const shouldAutoClose = toggleMemberCompleted(subject, member, currentDate);
+    const effectiveDate = assigneePicker?.overdueDate
+      ? parseDateKey(assigneePicker.overdueDate) ?? currentDate
+      : currentDate;
+    const shouldAutoClose = toggleMemberCompleted(subject, member, effectiveDate);
 
     if (shouldAutoClose) {
       if (assigneeCloseTimeoutRef.current) {
         clearTimeout(assigneeCloseTimeoutRef.current);
       }
       showToast('\u2713 Done!', 'done');
+      const isOverdue = !!assigneePicker?.overdueDate;
+      const overdueFromDate = assigneePicker?.overdueDate;
       assigneeCloseTimeoutRef.current = setTimeout(() => {
         setAssigneePicker(null);
         assigneeCloseTimeoutRef.current = null;
-        pulseCard(subject);
+        if (isOverdue && overdueFromDate) {
+          dismissCard(`${subject}-overdue`, () => {
+            // Remove the postpone override now that all members completed
+            // (toggleMemberCompleted already handled completion + rotation)
+            removePostponeOverride(subject, overdueFromDate);
+          });
+        } else {
+          pulseCard(subject);
+        }
       }, 600);
     }
   };
@@ -204,12 +218,12 @@ function ChoreApp() {
     setPostponeTarget(null);
   };
 
-  const openAssigneePicker = (subject: string) => {
+  const openAssigneePicker = (subject: string, overdueDate?: string, overdueAssignees?: string[]) => {
     if (assigneeCloseTimeoutRef.current) {
       clearTimeout(assigneeCloseTimeoutRef.current);
       assigneeCloseTimeoutRef.current = null;
     }
-    setAssigneePicker(subject);
+    setAssigneePicker({ subject, overdueDate, overdueAssignees });
   };
 
   const closeAssigneePicker = () => {
@@ -364,8 +378,10 @@ function ChoreApp() {
       {assigneePicker && (
         <AssigneePickerModal
           chores={chores}
-          assigneePicker={assigneePicker}
+          assigneePicker={assigneePicker.subject}
           currentDate={currentDate}
+          overdueDate={assigneePicker.overdueDate}
+          overdueAssignees={assigneePicker.overdueAssignees}
           onToggleMemberCompleted={handleToggleMemberCompleted}
           onClose={closeAssigneePicker}
         />

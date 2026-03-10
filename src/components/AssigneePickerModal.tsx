@@ -1,10 +1,13 @@
 import { getAssignedMembers, getCompletedBy } from '../utils/chores';
+import { parseDateKey } from '../utils/dates';
 import type { Chore } from '../types';
 
 interface AssigneePickerModalProps {
   chores: Chore[];
   assigneePicker: string;
   currentDate: Date;
+  overdueDate?: string;
+  overdueAssignees?: string[];
   onToggleMemberCompleted: (subject: string, member: string) => void;
   onClose: () => void;
 }
@@ -13,14 +16,21 @@ export default function AssigneePickerModal({
   chores,
   assigneePicker,
   currentDate,
+  overdueDate,
+  overdueAssignees,
   onToggleMemberCompleted,
   onClose,
 }: AssigneePickerModalProps) {
   const chore = chores.find((item) => item.subject === assigneePicker);
   if (!chore) return null;
 
-  const assignedList = getAssignedMembers(chore, currentDate);
-  const completedBy = getCompletedBy(chore, assignedList, currentDate);
+  const effectiveDate = overdueDate
+    ? parseDateKey(overdueDate) ?? currentDate
+    : currentDate;
+  const assignedList = overdueAssignees && overdueAssignees.length > 0
+    ? overdueAssignees
+    : getAssignedMembers(chore, effectiveDate);
+  const completedBy = getCompletedBy(chore, assignedList, effectiveDate);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">

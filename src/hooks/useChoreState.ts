@@ -47,6 +47,8 @@ export interface UseChoreStateReturn {
   completeLateOverdue: (subject: string, fromDate: string) => void;
   /** Abandon an overdue chore (won't be completed) and remove the override. */
   abandonOverdue: (subject: string, fromDate: string) => void;
+  /** Remove a postpone override (e.g. after per-member overdue completion). */
+  removePostponeOverride: (subject: string, fromDate: string) => void;
   /**
    * Auto-postpone all undone chores from `today` to `tomorrow`.
    * Used by the midnight rollover hook.
@@ -451,6 +453,7 @@ export default function useChoreState(): UseChoreStateReturn {
     postponeToDate,
     completeLateOverdue,
     abandonOverdue,
+    removePostponeOverride: removeOverride,
     replaceChores,
     mergeRemotePostpones,
     processRemoteData,

@@ -21,7 +21,7 @@ interface ChoreCardProps {
   onCompleteLateOverdue: (subject: string, fromDate: string) => void;
   onAbandonOverdue: (subject: string, fromDate: string) => void;
   onOpenPostponeSelector: (subject: string, fromDate?: string) => void;
-  onOpenAssigneePicker: (subject: string) => void;
+  onOpenAssigneePicker: (subject: string, overdueDate?: string, overdueAssignees?: string[]) => void;
   isDismissing?: boolean;
   isPulsing?: boolean;
 }
@@ -148,7 +148,31 @@ export default function ChoreCard({
         {!isLookahead && (
         <div className="flex flex-wrap items-center gap-3 sm:gap-6 self-center">
           {isOverdue ? (
-            showConfirm ? (
+            assignedList.length > 1 ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => onOpenAssigneePicker(chore.subject, originalDueDate, overdueAssignees)}
+                  className="rounded-full border border-green-500/40 bg-[#353E43] px-4 py-3 sm:px-8 sm:py-5 text-sm sm:text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[7rem] sm:min-w-[11rem] text-center transition-all duration-150"
+                >
+                  Mark Done
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenPostponeSelector(chore.subject, originalDueDate)}
+                  className="rounded-full border border-green-500/40 bg-[#353E43] px-4 py-3 sm:px-8 sm:py-5 text-sm sm:text-lg font-semibold text-[#a7f3d0] hover:bg-[#4a555c] hover:border-green-400 active:scale-95 min-w-[7rem] sm:min-w-[11rem] text-center transition-all duration-150"
+                >
+                  Postpone
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAbandonConfirm(true)}
+                  className="rounded-full border border-red-500/40 bg-[#353E43] px-4 py-3 sm:px-8 sm:py-5 text-sm sm:text-lg font-semibold text-red-300 hover:bg-[#4a555c] hover:border-red-400 active:scale-95 min-w-[7rem] sm:min-w-[11rem] text-center transition-all duration-150"
+                >
+                  Abandon
+                </button>
+              </div>
+            ) : showConfirm ? (
               <div className="flex flex-col items-center gap-3">
                 <p className="text-base font-semibold text-amber-300 text-center">Are you sure you did this?<br />Don't lie!</p>
                 <div className="flex items-center gap-3">
