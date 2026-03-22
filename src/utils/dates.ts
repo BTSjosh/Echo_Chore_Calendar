@@ -1,13 +1,9 @@
-// Hours at which the logical day rolls over (0–23). Times before this hour
-// are treated as belonging to the previous calendar day, so chores completed
-// at e.g. 1am still count against yesterday's date.
-export const DAY_BOUNDARY_HOUR = 4;
+// Hours at which the logical day rolls over (0–23). The rollover hook fires
+// at this hour and auto-postpones undone chores from the previous day.
+export const DAY_BOUNDARY_HOUR = 0;
 
-/** Returns a Date shifted back by DAY_BOUNDARY_HOUR hours, so that
- *  calendar date extraction (getDate/getMonth/getFullYear) reflects the
- *  "logical" day rather than the wall-clock calendar day. */
-export const getLogicalNow = (): Date =>
-  new Date(Date.now() - DAY_BOUNDARY_HOUR * 60 * 60 * 1000);
+/** Returns the current date/time for chore logic. */
+export const getLogicalNow = (): Date => new Date();
 
 export const toDateOnly = (value: Date | string | number): Date => {
   // Parse "YYYY-MM-DD" strings as local time, not UTC. new Date("2026-03-22")
