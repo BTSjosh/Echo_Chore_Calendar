@@ -4,6 +4,8 @@ import {
   saveChoreDefinitions,
   saveToLocalStorage,
   savePushIntent,
+  loadPostpones,
+  savePostpones,
   STORAGE_KEY,
 } from '../../utils/storage';
 import { SEED_CHORES, buildInitialChores } from '../../utils/chores';
@@ -77,6 +79,13 @@ export default function useChoreEditorState() {
         migrateHistorySubject(oldSubject, def.subject);
       }
 
+      // Clear postpone overrides for this chore — schedule may have changed,
+      // making old postponements stale (e.g. daily → one-time).
+      clearPostponesForChore(def.subject);
+      if (oldSubject !== def.subject) {
+        clearPostponesForChore(oldSubject);
+      }
+
       return next;
     });
     pushAfterEdit();
@@ -123,5 +132,13 @@ function migrateHistorySubject(oldSubject: string, newSubject: string) {
   });
   if (changed) {
     saveHistory(updated);
+  }
+}
+
+function clearPostponesForChore(subject: string) {
+  const overrides = loadPostpones();
+  const cleaned = overrides.filter((o) => o.subject !== subject);
+  if (cleaned.length !== overrides.length) {
+    savePostpones(cleaned);
   }
 }
