@@ -10,6 +10,18 @@ export const getLogicalNow = (): Date =>
   new Date(Date.now() - DAY_BOUNDARY_HOUR * 60 * 60 * 1000);
 
 export const toDateOnly = (value: Date | string | number): Date => {
+  // Parse "YYYY-MM-DD" strings as local time, not UTC. new Date("2026-03-22")
+  // interprets date-only strings as UTC midnight, which shifts the date back
+  // a day in timezones behind UTC (e.g. US timezones).
+  if (typeof value === 'string') {
+    const parts = value.split('-');
+    if (parts.length === 3) {
+      const [y, m, d] = parts.map(Number);
+      if (y > 999 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return new Date(y, m - 1, d);
+      }
+    }
+  }
   const date = value instanceof Date ? value : new Date(value);
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 };

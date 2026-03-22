@@ -134,6 +134,9 @@ export const mapImportedChore = (chore: RawImportedChore): Chore => {
     startDate: chore.startDate ?? BASE_START_DATE,
   };
 
+  if (chore.dueDate) normalized.dueDate = chore.dueDate;
+  if (chore.rotationStartDate) normalized.rotationStartDate = chore.rotationStartDate;
+
   if (!isRotating) return normalized;
 
   return { ...normalized, rotation };
