@@ -22,11 +22,12 @@ export default function useChoreEditorState() {
     saveChoreDefinitions(nextChores);
   }, []);
 
-  // Push to Supabase after a local change, setting the push intent only on success.
+  // Push to Supabase after a local change. Set the push intent immediately so
+  // that if the user navigates to the main page before the push completes,
+  // processRemoteData knows local definitions are newer and won't overwrite them.
   const pushAfterEdit = () => {
-    pushSnapshotToSupabase().then((ok) => {
-      if (ok) savePushIntent();
-    });
+    savePushIntent();
+    pushSnapshotToSupabase();
   };
 
   const addChore = useCallback((def: ChoreDefinition) => {

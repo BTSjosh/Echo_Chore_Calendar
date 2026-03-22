@@ -1,5 +1,5 @@
 import { HOUSEHOLD, BASE_START_DATE } from '../../utils/chores';
-import { getFormattedDate } from '../../utils/dates';
+import { getFormattedDate, getLogicalNow } from '../../utils/dates';
 import type { Chore, ChoreDefinition, Frequency, CycleType, Recurrence, Rotation } from '../../types';
 
 export interface EditorFormState {
@@ -138,6 +138,6 @@ export const getDefaultFormState = (): EditorFormState => ({
   recurrenceInterval: 1,
   daysOfWeek: [],
   dayOfMonth: 1,
-  startDate: getFormattedDate(new Date()),
+  startDate: getFormattedDate(getLogicalNow()),
   dueDate: '',
 });
